@@ -9,6 +9,56 @@ class ProductService {
     }
 
     /**
+ * Update product by ID in Firestore
+ * @param {string} productId
+ * @param {Object} updateData
+ */
+    async updateProduct(productId, updateData) {
+        try {
+            const docRef = this.collection.doc(productId);
+            const doc = await docRef.get();
+            if (!doc.exists) return null;
+
+            await docRef.update({
+                ...updateData,
+                updatedAt: new Date(),
+            });
+
+            // (Opsional) Update embedding & Pinecone jika description/name/category berubah
+            // (Implementasi sesuai kebutuhan)
+
+            const updatedDoc = await docRef.get();
+            return { id: updatedDoc.id, ...updatedDoc.data() };
+        } catch (error) {
+            logger.error('Error updating product:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Delete product by ID from Firestore and Pinecone
+     * @param {string} productId
+     */
+    async deleteProduct(productId) {
+        try {
+            const docRef = this.collection.doc(productId);
+            const doc = await docRef.get();
+            if (!doc.exists) return null;
+
+            await docRef.delete();
+
+            // Hapus dari Pinecone juga
+            await vectorService.deleteVectors([productId]);
+
+            logger.info(`Deleted product with ID: ${productId}`);
+            return { id: productId };
+        } catch (error) {
+            logger.error('Error deleting product:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Add new product to Firestore and Pinecone
      * @param {Object} productData - Product information
      */

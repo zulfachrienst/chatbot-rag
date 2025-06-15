@@ -3,6 +3,7 @@ const chatService = require('../services/chatService');
 const productService = require('../services/productService');
 const logger = require('../utils/logger');
 const historyService = require('../services/historyService');
+const { authenticate, authorizeAdmin, authorizeSelfOrAdmin } = require('../middleware/auth');
 
 const jwt = require('jsonwebtoken');
 const router = express.Router();
@@ -144,8 +145,7 @@ router.delete('/products/:id', async (req, res) => {
     }
 });
 
-// List all users with chat history
-router.get('/users', async (req, res) => {
+router.get('/users', authenticate, authorizeAdmin, async (req, res) => {
     try {
         const users = await historyService.listUsers();
         res.json({ success: true, data: users });
@@ -155,8 +155,8 @@ router.get('/users', async (req, res) => {
     }
 });
 
-// Get chat history for a user
-router.get('/users/:userId/history', async (req, res) => {
+// Get chat history for a user (admin or self)
+router.get('/users/:userId/history', authenticate, authorizeSelfOrAdmin, async (req, res) => {
     try {
         const userId = req.params.userId;
         const history = await historyService.getHistory(userId);
@@ -167,8 +167,8 @@ router.get('/users/:userId/history', async (req, res) => {
     }
 });
 
-// Delete chat history for a user
-router.delete('/users/:userId/history', async (req, res) => {
+// Delete chat history for a user (admin or self)
+router.delete('/users/:userId/history', authenticate, authorizeSelfOrAdmin, async (req, res) => {
     try {
         const userId = req.params.userId;
         await historyService.deleteHistory(userId);
