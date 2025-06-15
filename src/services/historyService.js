@@ -38,4 +38,21 @@ async function getHistory(userId) {
     }
 }
 
-module.exports = { addMessage, getHistory };
+/**
+ * Mendapatkan daftar userId yang punya riwayat chat
+ * @returns {Promise<Array<string>>}
+ */
+async function listUsers() {
+    const snapshot = await db.collection(COLLECTION).get();
+    return snapshot.docs.map(doc => doc.id);
+}
+
+/**
+ * Menghapus seluruh riwayat chat user
+ * @param {string} userId
+ */
+async function deleteHistory(userId) {
+    await db.collection(COLLECTION).doc(userId).delete();
+}
+
+module.exports = { addMessage, getHistory, listUsers, deleteHistory };
