@@ -43,8 +43,8 @@ async function getHistory(userId) {
  * @returns {Promise<Array<string>>}
  */
 async function listUsers() {
-    const snapshot = await db.collection(COLLECTION).get();
-    return snapshot.docs.map(doc => doc.id);
+    const snapshot = await db.collection("/").doc(COLLECTION);
+    return snapshot.data().history.map(entry => entry.userId);
 }
 
 /**
