@@ -209,7 +209,7 @@ router.post('/login', (req, res) => {
         };
 
         const token = jwt.sign(payload, SECRET, { expiresIn: '1h' });
-        logger.info(`User ${DUMMY_ADMIN.email} logged in successfully`);
+        logger.info(`User ${DUMMY_ADMIN.email} logged in successfully, with role ${DUMMY_ADMIN.role}, token ${token}`);
 
         return res.json({
             success: true,
