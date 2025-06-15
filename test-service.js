@@ -28,7 +28,7 @@ async function testGroq() {
 
         const completion = await groq.chat.completions.create({
             messages: [{ role: "user", content: "Hello" }],
-            model: "llama3-8b-8192",
+            model: "llama3-70b-8192",
             max_tokens: 10
         });
 
