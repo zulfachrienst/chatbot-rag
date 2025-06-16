@@ -13,6 +13,7 @@ class EmbeddingService {
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
                 const response = await hf.featureExtraction({
+                    provider: "hf-inference",
                     model: 'sentence-transformers/all-MiniLM-L6-v2',
                     inputs: text,
                 });
