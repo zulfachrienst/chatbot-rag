@@ -4,6 +4,7 @@ const productService = require('../services/productService');
 const logger = require('../utils/logger');
 const historyService = require('../services/historyService');
 const { authenticate, authorizeAdmin, authorizeSelfOrAdmin } = require('../middleware/auth');
+const healthMonitor = require('../services/healthMonitorService');
 
 const jwt = require('jsonwebtoken');
 const router = express.Router();
@@ -219,6 +220,61 @@ router.post('/login', (req, res) => {
     }
 
     return res.status(401).json({ error: 'Invalid credentials' });
+});
+
+// Test all services
+router.post('/health/test-all', async (req, res) => {
+    try {
+        const results = {};
+        for (const [name, fn] of Object.entries({
+            huggingface: healthMonitor.testHuggingFaceOnce,
+            groq: healthMonitor.testGroqOnce,
+            pinecone: healthMonitor.testPineconeOnce,
+            firebase: healthMonitor.testFirebaseOnce
+        })) {
+            const result = await healthMonitor.testWithRetry(fn, name, 5);
+            await healthMonitor.saveHealthResult(name, result);
+            results[name] = result;
+        }
+        res.json({ success: true, data: results });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Test individual service
+router.post('/health/test/:service', async (req, res) => {
+    try {
+        const service = req.params.service;
+        const fnMap = {
+            huggingface: healthMonitor.testHuggingFaceOnce,
+            groq: healthMonitor.testGroqOnce,
+            pinecone: healthMonitor.testPineconeOnce,
+            firebase: healthMonitor.testFirebaseOnce
+        };
+        const fn = fnMap[service];
+        if (!fn) return res.status(400).json({ error: 'Unknown service' });
+
+        const result = await healthMonitor.testWithRetry(fn, service, 5);
+        await healthMonitor.saveHealthResult(service, result);
+        res.json({ success: true, data: result });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get health status (from Firestore)
+router.get('/health/status', async (req, res) => {
+    try {
+        const snapshot = await db.collection('serviceHealth').get();
+        const data = {};
+        snapshot.forEach(doc => {
+            data[doc.id] = doc.data();
+        });
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;
