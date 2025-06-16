@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 const historyService = require('../services/historyService');
 const { authenticate, authorizeAdmin, authorizeSelfOrAdmin } = require('../middleware/auth');
 const healthMonitor = require('../services/healthMonitorService');
+const db = require('../config/firebase').db; // Pastikan kamu sudah mengatur Firebase di config/firebase.js
 
 const jwt = require('jsonwebtoken');
 const router = express.Router();
