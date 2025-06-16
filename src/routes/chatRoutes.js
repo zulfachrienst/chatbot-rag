@@ -222,27 +222,6 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
 });
 
-// Test all services
-router.post('/health/test-all', async (req, res) => {
-    try {
-        const results = {};
-        for (const [name, fn] of Object.entries({
-            huggingface: healthMonitor.testHuggingFaceOnce,
-            groq: healthMonitor.testGroqOnce,
-            pinecone: healthMonitor.testPineconeOnce,
-            firebase: healthMonitor.testFirebaseOnce
-        })) {
-            const result = await healthMonitor.testWithRetry(fn, name, 5);
-            await healthMonitor.saveHealthResult(name, result);
-            results[name] = result;
-        }
-        res.json({ success: true, data: results });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Test individual service
 router.post('/health/test/:service', async (req, res) => {
     try {
         const service = req.params.service;
@@ -255,10 +234,18 @@ router.post('/health/test/:service', async (req, res) => {
         const fn = fnMap[service];
         if (!fn) return res.status(400).json({ error: 'Unknown service' });
 
+        // Set status in-progress
+        await healthMonitor.saveHealthResult(service, { status: 'in-progress', lastTested: new Date() });
+
+        // Jalankan test 5x
         const result = await healthMonitor.testWithRetry(fn, service, 5);
-        await healthMonitor.saveHealthResult(service, result);
+
+        // Simpan hasil test
+        await healthMonitor.saveHealthResult(service, { ...result, status: 'done', lastTested: new Date() });
+
         res.json({ success: true, data: result });
     } catch (err) {
+        await healthMonitor.saveHealthResult(req.params.service, { status: 'error', lastTested: new Date(), error: err.message });
         res.status(500).json({ error: err.message });
     }
 });
