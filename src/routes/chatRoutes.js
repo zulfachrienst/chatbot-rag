@@ -668,6 +668,10 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
         // Hitung cutoff date berdasarkan olderThan (dalam hari)
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - olderThan);
+
+        // Konversi cutoffDate ke Firestore Timestamp jika diperlukan
+        const { Timestamp } = require('firebase-admin').firestore;
+        const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
         
         let deletedCount = 0;
         
@@ -681,7 +685,7 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
         let query = db.collection('systemLogs');
         
         // Filter berdasarkan timestamp
-        query = query.where('timestamp', '<', cutoffDate);
+        query = query.where('timestamp', '<', cutoffTimestamp);
         
         // Filter berdasarkan level jika level tidak null dan bukan ALL
         if (level && level !== 'ALL') {
