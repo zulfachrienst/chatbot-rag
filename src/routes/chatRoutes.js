@@ -661,31 +661,36 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
     const request_id = logger.generateRequestId();
 
     try {
-        const { olderThan = 7, level = null } = req.body;
+        // Ambil parameter dari request body - sekarang support olderThanHours
+        const { olderThanHours = 168, level = "ALL" } = req.body; // 168 hours = 7 days default
+        
+        // Hitung cutoff date berdasarkan olderThanHours
         const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - olderThan);
+        cutoffDate.setHours(cutoffDate.getHours() - olderThanHours);
 
         const { Timestamp } = require('firebase-admin').firestore;
         const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
 
         let deletedCount = 0;
 
-        // Hapus array rolling log di errorLogs/main jika level adalah ERROR atau ALL atau tidak ada filter level
-        if (!level || level === 'ERROR' || level === 'ALL') {
+        // Hapus array rolling log di errorLogs/main jika level adalah ERROR atau ALL
+        if (level === 'ERROR' || level === 'ALL') {
             await db.collection('errorLogs').doc('main').set({ logs: [] }, { merge: true });
             deletedCount += 1;
         }
 
-        // Query systemLogs
+        // Query systemLogs dengan timestamp filter
         let query = db.collection('systemLogs').where('timestamp', '<', cutoffTimestamp);
-        // Hanya filter level jika level spesifik (INFO/WARN/ERROR)
+        
+        // Filter berdasarkan level jika level bukan ALL
         if (level && level !== 'ALL') {
             query = query.where('level', '==', level);
         }
 
-        // Batch delete
+        // Batch delete dengan optimasi
         const batchSize = 500;
         let totalDeleted = 0;
+        
         while (true) {
             const snapshot = await query.limit(batchSize).get();
             if (snapshot.empty) break;
@@ -695,26 +700,61 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
             await batch.commit();
             totalDeleted += snapshot.size;
 
+            // Break jika jumlah dokumen kurang dari batchSize
             if (snapshot.size < batchSize) break;
         }
+        
         deletedCount += totalDeleted;
 
+        // Format time text untuk response yang lebih user-friendly
+        const formatTimeText = (hours) => {
+            if (hours < 24) {
+                return `${hours} hour${hours !== 1 ? 's' : ''}`;
+            } else {
+                const days = Math.floor(hours / 24);
+                const remainingHours = hours % 24;
+                if (remainingHours === 0) {
+                    return `${days} day${days !== 1 ? 's' : ''}`;
+                } else {
+                    return `${days} day${days !== 1 ? 's' : ''} and ${remainingHours} hour${remainingHours !== 1 ? 's' : ''}`;
+                }
+            }
+        };
+
+        const timeText = formatTimeText(olderThanHours);
+        const levelText = level === 'ALL' ? 'all levels' : `level ${level}`;
+
+        // Log aktivitas dengan detail yang lengkap
         await logger.info('Cleared logs', {
             source: 'Admin Routes',
             user_id: req.user?.userId || req.user?._id || req.user?.id || null,
             request_id,
             endpoint,
             response_time: Date.now() - startTime,
-            message: `Cleared ${deletedCount} logs older than ${olderThan} days${level && level !== 'ALL' ? ` with level ${level}` : ''}`,
-            details: { olderThan, level, deletedCount, cutoffDate }
+            message: `Cleared ${deletedCount} logs older than ${timeText} with ${levelText}`,
+            details: {
+                olderThanHours,
+                level,
+                deletedCount,
+                cutoffDate,
+                cutoffTimestamp,
+                timeText,
+                levelText
+            }
         });
 
+        // Response yang lebih informatif
         res.json({
             success: true,
-            message: `Successfully cleared ${deletedCount} logs`,
+            message: `Successfully cleared ${deletedCount} logs older than ${timeText} with ${levelText}`,
             deletedCount,
+            timeText,
+            levelText,
+            olderThanHours,
+            level,
             request_id
         });
+
     } catch (error) {
         await logger.error('Clear log error', {
             source: 'Admin Routes',
@@ -723,8 +763,12 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
             endpoint,
             response_time: Date.now() - startTime,
             message: error.message,
-            details: error.stack || error
+            details: {
+                error: error.stack || error,
+                requestBody: req.body
+            }
         });
+        
         res.status(500).json({
             success: false,
             error: 'Internal server error',
