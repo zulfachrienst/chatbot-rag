@@ -557,7 +557,7 @@ router.get('/health/status', async (req, res) => {
     }
 });
 
-router.get('/error-logs', async (req, res) => {
+router.get('/error-logs', authenticate, authorizeAdmin, async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/error-logs';
     const request_id = logger.generateRequestId();
@@ -583,6 +583,54 @@ router.get('/error-logs', async (req, res) => {
     } catch (error) {
         await logger.error('Get error logs error', {
             source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
+        res.status(500).json({
+            error: 'Internal server error',
+            message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
+            request_id
+        });
+    }
+});
+
+router.get('/system-logs', authenticate, authorizeAdmin, async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/system-logs';
+    const request_id = logger.generateRequestId();
+    try {
+        // Ambil 100 log terbaru dari koleksi systemLogs
+        const snapshot = await db.collection('systemLogs')
+            .orderBy('timestamp', 'desc')
+            .limit(100)
+            .get();
+
+        const logs = [];
+        snapshot.forEach(doc => {
+            logs.push({ id: doc.id, ...doc.data() });
+        });
+
+        await logger.info('Fetched system logs', {
+            source: 'Chat Routes',
+            user_id: req.user?.userId || req.user?._id || req.user?.id || null,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { count: logs.length }
+        });
+
+        res.json({
+            success: true,
+            data: logs,
+            request_id
+        });
+    } catch (error) {
+        await logger.error('Get system logs error', {
+            source: 'Chat Routes',
+            user_id: req.user?.userId || req.user?._id || req.user?.id || null,
             request_id,
             endpoint,
             response_time: Date.now() - startTime,
