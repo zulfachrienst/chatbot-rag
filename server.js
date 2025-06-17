@@ -24,7 +24,7 @@ app.get('/', (req, res) => {
     const startTime = Date.now();
     const request_id = logger.generateRequestId();
     logger.info('Root health check accessed', {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: '/',
         message: 'Root health check accessed',
@@ -37,7 +37,7 @@ app.get('/', (req, res) => {
         request_id
     });
     logger.info('Root health check response sent', {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: '/',
         response_time: Date.now() - startTime,
@@ -50,7 +50,7 @@ app.get('/health', (req, res) => {
     const startTime = Date.now();
     const request_id = logger.generateRequestId();
     logger.info('Health endpoint accessed', {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: '/health',
         message: 'Health endpoint accessed',
@@ -63,7 +63,7 @@ app.get('/health', (req, res) => {
         request_id
     });
     logger.info('Health endpoint response sent', {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: '/health',
         response_time: Date.now() - startTime,
@@ -83,7 +83,7 @@ app.use((req, res) => {
     const startTime = Date.now();
     const request_id = logger.generateRequestId();
     logger.warn('Route not found', {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: req.path,
         message: 'Route not found',
@@ -96,7 +96,7 @@ app.use((req, res) => {
         request_id
     });
     logger.warn('404 response sent', {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: req.path,
         response_time: Date.now() - startTime,
@@ -109,7 +109,7 @@ app.use((req, res) => {
 process.on('unhandledRejection', (reason, promise) => {
     const request_id = logger.generateRequestId();
     logger.error('Unhandled Rejection at:', {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: 'process.on.unhandledRejection',
         message: 'Unhandled Rejection',
@@ -120,7 +120,7 @@ process.on('unhandledRejection', (reason, promise) => {
 process.on('uncaughtException', (error) => {
     const request_id = logger.generateRequestId();
     logger.error('Uncaught Exception:', {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: 'process.on.uncaughtException',
         message: error.message,
@@ -132,28 +132,28 @@ process.on('uncaughtException', (error) => {
 app.listen(PORT, () => {
     const request_id = logger.generateRequestId();
     logger.info(`🚀 Server running on port ${PORT}`, {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: 'listen',
         message: `Server running on port ${PORT}`,
         details: { port: PORT }
     });
     logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`, {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: 'listen',
         message: `Environment: ${process.env.NODE_ENV || 'development'}`,
         details: {}
     });
     logger.info(`🌐 Health check: http://localhost:${PORT}/health`, {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: 'listen',
         message: `Health check: http://localhost:${PORT}/health`,
         details: {}
     });
     logger.info(`💬 Chat API: http://localhost:${PORT}/api/chat`, {
-        source: 'server',
+        source: 'Server',
         request_id,
         endpoint: 'listen',
         message: `Chat API: http://localhost:${PORT}/api/chat`,

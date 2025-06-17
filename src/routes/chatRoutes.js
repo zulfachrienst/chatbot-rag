@@ -655,34 +655,85 @@ router.get('/system-logs', authenticate, authorizeAdmin, async (req, res) => {
     }
 });
 
-router.delete('/clear-log', authenticate, authorizeAdmin, async (req, res) => {
+router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
     const startTime = Date.now();
-    const endpoint = '/clear-log';
+    const endpoint = '/clear-logs';
     const request_id = logger.generateRequestId();
+    
     try {
-        // Hapus array rolling log di errorLogs/main
-        await db.collection('errorLogs').doc('main').set({ logs: [] }, { merge: true });
-
-        // Hapus semua dokumen di systemLogs
-        const snapshot = await db.collection('systemLogs').get();
-        const batch = db.batch();
-        snapshot.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
-
-        await logger.info('Cleared all logs', {
-            source: 'Chat Routes',
+        // Ambil parameter dari request body
+        const { olderThan = 7, level = null } = req.body;
+        
+        // Hitung cutoff date berdasarkan olderThan (dalam hari)
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - olderThan);
+        
+        let deletedCount = 0;
+        
+        // Hapus array rolling log di errorLogs/main jika level adalah ERROR atau ALL
+        if (level === 'ERROR' || level === null) {
+            await db.collection('errorLogs').doc('main').set({ logs: [] }, { merge: true });
+            deletedCount += 1; // Menghitung sebagai 1 operasi delete
+        }
+        
+        // Hapus dokumen di systemLogs berdasarkan filter
+        let query = db.collection('systemLogs');
+        
+        // Filter berdasarkan timestamp
+        query = query.where('timestamp', '<', cutoffDate);
+        
+        // Filter berdasarkan level jika level tidak null dan bukan ALL
+        if (level && level !== 'ALL') {
+            query = query.where('level', '==', level);
+        }
+        
+        // Hapus dalam batch (Firestore limit)
+        const batchSize = 500;
+        let totalDeleted = 0;
+        
+        while (true) {
+            const snapshot = await query.limit(batchSize).get();
+            if (snapshot.empty) break;
+            
+            const batch = db.batch();
+            snapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            
+            await batch.commit();
+            totalDeleted += snapshot.size;
+            
+            // Jika jumlah dokumen kurang dari batchSize, berarti sudah tidak ada lagi
+            if (snapshot.size < batchSize) break;
+        }
+        
+        deletedCount += totalDeleted;
+        
+        // Log aktivitas
+        await logger.info('Cleared logs', {
+            source: 'Admin Routes',
             user_id: req.user?.userId || req.user?._id || req.user?.id || null,
             request_id,
             endpoint,
             response_time: Date.now() - startTime,
-            message: 'All logs cleared',
-            details: {}
+            message: `Cleared ${deletedCount} logs older than ${olderThan} days${level && level !== 'ALL' ? ` with level ${level}` : ''}`,
+            details: {
+                olderThan,
+                level,
+                deletedCount,
+                cutoffDate
+            }
         });
-
-        res.json({ success: true, message: 'All logs cleared', request_id });
+        
+        res.json({ 
+            success: true, 
+            message: `Successfully cleared ${deletedCount} logs`, 
+            deletedCount,
+            request_id 
+        });
     } catch (error) {
         await logger.error('Clear log error', {
-            source: 'Chat Routes',
+            source: 'Admin Routes',
             user_id: req.user?.userId || req.user?._id || req.user?.id || null,
             request_id,
             endpoint,
@@ -691,6 +742,7 @@ router.delete('/clear-log', authenticate, authorizeAdmin, async (req, res) => {
             details: error.stack || error
         });
         res.status(500).json({
+            success: false,
             error: 'Internal server error',
             message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
             request_id
