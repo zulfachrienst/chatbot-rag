@@ -662,6 +662,7 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
     
     try {
         // Ambil parameter dari request body
+        console.log(req.body);
         const { olderThan = 7, level = null } = req.body;
         
         // Hitung cutoff date berdasarkan olderThan (dalam hari)
