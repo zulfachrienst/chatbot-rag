@@ -23,7 +23,6 @@ Apakah user ingin melihat semua produk yang tersedia? Jawab hanya "yes" atau "no
         });
 
         const answer = completion.choices[0]?.message?.content?.toLowerCase().trim();
-        logger.info(`Intent detection for "${message}": ${answer}`);
         return answer === 'yes';
     }
 
@@ -36,6 +35,9 @@ Apakah user ingin melihat semua produk yang tersedia? Jawab hanya "yes" atau "no
      */
     async generateResponse(userMessage, relatedProducts = [], chatHistory = [], retries = 5) {
         let lastError;
+        const endpoint = '/chatService/generateResponse';
+        const startTime = Date.now();
+        const request_id = logger.generateRequestId();
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
                 // Build context string dari related products
@@ -95,11 +97,25 @@ Formatting rules for WhatsApp:
                 const response = completion.choices[0]?.message?.content?.trim();
 
                 if (!response) {
-                    logger.warn(`⚠️ AI response empty for: ${userMessage}`);
+                    await logger.warn(`AI response empty for: ${userMessage}`, {
+                        source: 'Chat Service',
+                        request_id,
+                        endpoint,
+                        response_time: Date.now() - startTime,
+                        message: `AI response empty for: ${userMessage}`,
+                        details: { userMessage, relatedProducts, chatHistory }
+                    });
                     return 'Sorry, I couldn’t find the right answer for you at the moment.';
                 }
 
-                logger.info(`✅ Generated response for query: "${userMessage.substring(0, 50)}..."`);
+                await logger.info(`Generated response for query: "${userMessage.substring(0, 50)}..."`, {
+                    source: 'Chat Service',
+                    request_id,
+                    endpoint,
+                    response_time: Date.now() - startTime,
+                    message: `Generated response for query: "${userMessage.substring(0, 50)}..."`,
+                    details: { userMessage, relatedProducts, chatHistory, response }
+                });
                 return response;
 
             } catch (error) {
@@ -117,11 +133,25 @@ Formatting rules for WhatsApp:
                         error.message.toLowerCase().includes('fetcherror')
                     ));
                 if (isTimeout && attempt < retries) {
-                    logger.warn(`GROQ fetch failed (attempt ${attempt + 1}), retrying...`);
+                    await logger.warn(`GROQ fetch failed (attempt ${attempt + 1}), retrying...`, {
+                        source: 'Chat Service',
+                        request_id,
+                        endpoint,
+                        response_time: Date.now() - startTime,
+                        message: `GROQ fetch failed (attempt ${attempt + 1}), retrying...`,
+                        details: { error, attempt }
+                    });
                     await new Promise(res => setTimeout(res, 1000 * (attempt + 1))); // Exponential backoff
                     continue;
                 }
-                logger.error('❌ Error generating response:', error);
+                await logger.error('Error generating response', {
+                    source: 'Chat Service',
+                    request_id,
+                    endpoint,
+                    response_time: Date.now() - startTime,
+                    message: error.message,
+                    details: error.stack || error
+                });
                 break;
             }
         }
@@ -134,6 +164,9 @@ Formatting rules for WhatsApp:
      * @param {string} message - User message
      */
     async processMessage(userId, message) {
+        const endpoint = '/chatService/processMessage';
+        const startTime = Date.now();
+        const request_id = logger.generateRequestId();
         try {
             // Ambil riwayat chat user
             const chatHistory = await historyService.getHistory(userId) || [];
@@ -154,13 +187,31 @@ Formatting rules for WhatsApp:
             await historyService.addMessage(userId, 'user', message);
             await historyService.addMessage(userId, 'assistant', response);
 
+            await logger.info('Processed chat message', {
+                source: 'Chat Service',
+                user_id: userId,
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: 'Processed chat message',
+                details: { userId, message, relatedProducts, response }
+            });
+
             return {
                 response,
                 relatedProducts,
                 timestamp: new Date().toISOString(),
             };
         } catch (error) {
-            logger.error('Error processing message:', error);
+            await logger.error('Error processing message', {
+                source: 'Chat Service',
+                user_id: userId,
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: error.message,
+                details: error.stack || error
+            });
             throw error;
         }
     }

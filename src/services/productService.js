@@ -9,15 +9,28 @@ class ProductService {
     }
 
     /**
- * Update product by ID in Firestore
- * @param {string} productId
- * @param {Object} updateData
- */
+     * Update product by ID in Firestore
+     * @param {string} productId
+     * @param {Object} updateData
+     */
     async updateProduct(productId, updateData) {
+        const startTime = Date.now();
+        const endpoint = '/productService/updateProduct';
+        const request_id = logger.generateRequestId();
         try {
             const docRef = this.collection.doc(productId);
             const doc = await docRef.get();
-            if (!doc.exists) return null;
+            if (!doc.exists) {
+                await logger.warn('Product not found for update', {
+                    source: 'Product Service',
+                    request_id,
+                    endpoint,
+                    response_time: Date.now() - startTime,
+                    message: 'Product not found',
+                    details: { productId }
+                });
+                return null;
+            }
 
             await docRef.update({
                 ...updateData,
@@ -28,9 +41,23 @@ class ProductService {
             // (Implementasi sesuai kebutuhan)
 
             const updatedDoc = await docRef.get();
+            await logger.info('Product updated successfully', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                details: { id: updatedDoc.id, ...updatedDoc.data() }
+            });
             return { id: updatedDoc.id, ...updatedDoc.data() };
         } catch (error) {
-            logger.error('Error updating product:', error);
+            await logger.error('Error updating product', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: error.message,
+                details: error.stack || error
+            });
             throw error;
         }
     }
@@ -40,20 +67,46 @@ class ProductService {
      * @param {string} productId
      */
     async deleteProduct(productId) {
+        const startTime = Date.now();
+        const endpoint = '/productService/deleteProduct';
+        const request_id = logger.generateRequestId();
         try {
             const docRef = this.collection.doc(productId);
             const doc = await docRef.get();
-            if (!doc.exists) return null;
+            if (!doc.exists) {
+                await logger.warn('Product not found for delete', {
+                    source: 'Product Service',
+                    request_id,
+                    endpoint,
+                    response_time: Date.now() - startTime,
+                    message: 'Product not found',
+                    details: { productId }
+                });
+                return null;
+            }
 
             await docRef.delete();
 
             // Hapus dari Pinecone juga
             await vectorService.deleteVectors([productId]);
 
-            logger.info(`Deleted product with ID: ${productId}`);
+            await logger.info('Product deleted successfully', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                details: { id: productId }
+            });
             return { id: productId };
         } catch (error) {
-            logger.error('Error deleting product:', error);
+            await logger.error('Error deleting product', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: error.message,
+                details: error.stack || error
+            });
             throw error;
         }
     }
@@ -63,6 +116,9 @@ class ProductService {
      * @param {Object} productData - Product information
      */
     async addProduct(productData) {
+        const startTime = Date.now();
+        const endpoint = '/productService/addProduct';
+        const request_id = logger.generateRequestId();
         try {
             // Add to Firestore
             const docRef = await this.collection.add({
@@ -87,10 +143,23 @@ class ProductService {
                 }
             }]);
 
-            logger.info(`Added product: ${productData.name} with ID: ${docRef.id}`);
+            await logger.info('Product added successfully', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                details: { id: docRef.id, ...productData }
+            });
             return { id: docRef.id, ...productData };
         } catch (error) {
-            logger.error('Error adding product:', error);
+            await logger.error('Error adding product', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: error.message,
+                details: error.stack || error
+            });
             throw error;
         }
     }
@@ -100,14 +169,39 @@ class ProductService {
      * @param {string} productId - Product ID
      */
     async getProduct(productId) {
+        const startTime = Date.now();
+        const endpoint = '/productService/getProduct';
+        const request_id = logger.generateRequestId();
         try {
             const doc = await this.collection.doc(productId).get();
             if (!doc.exists) {
+                await logger.warn('Product not found', {
+                    source: 'Product Service',
+                    request_id,
+                    endpoint,
+                    response_time: Date.now() - startTime,
+                    message: 'Product not found',
+                    details: { productId }
+                });
                 return null;
             }
+            await logger.info('Fetched product by ID', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                details: { id: doc.id, ...doc.data() }
+            });
             return { id: doc.id, ...doc.data() };
         } catch (error) {
-            logger.error('Error getting product:', error);
+            await logger.error('Error getting product', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: error.message,
+                details: error.stack || error
+            });
             throw error;
         }
     }
@@ -118,6 +212,9 @@ class ProductService {
      * @param {number} limit - Number of results
      */
     async searchProducts(query, limit = 5) {
+        const startTime = Date.now();
+        const endpoint = '/productService/searchProducts';
+        const request_id = logger.generateRequestId();
         try {
             // Generate embedding for query
             const queryEmbedding = await embeddingService.generateEmbedding(query);
@@ -136,9 +233,24 @@ class ProductService {
                 })
             );
 
+            await logger.info('Searched products by similarity', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                details: { query, limit, resultCount: products.length }
+            });
+
             return products.filter(product => product !== null);
         } catch (error) {
-            logger.error('Error searching products:', error);
+            await logger.error('Error searching products', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: error.message,
+                details: error.stack || error
+            });
             throw error;
         }
     }
@@ -147,15 +259,32 @@ class ProductService {
      * Get all products from Firestore
      */
     async getAllProducts() {
+        const startTime = Date.now();
+        const endpoint = '/productService/getAllProducts';
+        const request_id = logger.generateRequestId();
         try {
             const snapshot = await this.collection.get();
             const products = [];
             snapshot.forEach(doc => {
                 products.push({ id: doc.id, ...doc.data() });
             });
+            await logger.info('Fetched all products', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                details: { count: products.length }
+            });
             return products;
         } catch (error) {
-            logger.error('Error getting all products:', error);
+            await logger.error('Error getting all products', {
+                source: 'Product Service',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: error.message,
+                details: error.stack || error
+            });
             throw error;
         }
     }

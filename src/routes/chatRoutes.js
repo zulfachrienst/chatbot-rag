@@ -30,32 +30,81 @@ const DUMMY_ADMIN = {
 };
 
 router.post('/chat', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/chat';
+    const request_id = logger.generateRequestId();
     try {
-        logger.info('Received chat request:', req.body);
-        const { message, userId } = req.body; // Ambil userId dari body
+        const { message, userId } = req.body;
 
         if (!message || typeof message !== 'string') {
+            await logger.warn('Invalid message input', {
+                source: 'Chat Routes',
+                user_id: userId || null,
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: 'Message is required and must be a string',
+                details: req.body
+            });
             return res.status(400).json({
-                error: 'Message is required and must be a string'
+                error: 'Message is required and must be a string',
+                request_id
             });
         }
         if (!userId || typeof userId !== 'string') {
+            await logger.warn('Invalid userId input', {
+                source: 'Chat Routes',
+                user_id: userId || null,
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: 'userId is required and must be a string',
+                details: req.body
+            });
             return res.status(400).json({
-                error: 'userId is required and must be a string'
+                error: 'userId is required and must be a string',
+                request_id
             });
         }
 
-        const result = await chatService.processMessage(userId, message); // Kirim userId ke chatService
+        await logger.info('Received chat request', {
+            source: 'Chat Routes',
+            user_id: userId,
+            request_id,
+            endpoint,
+            details: req.body
+        });
+
+        const result = await chatService.processMessage(userId, message);
+
+        await logger.info('Chat processed successfully', {
+            source: 'Chat Routes',
+            user_id: userId,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { result }
+        });
 
         res.json({
             success: true,
-            data: result
+            data: result,
+            request_id
         });
     } catch (error) {
-        logger.error('Chat controller error:', error);
+        await logger.error('Chat controller error', {
+            source: 'Chat Routes',
+            user_id: req.body?.userId || null,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
         res.status(500).json({
             error: 'Internal server error',
-            message: error.message
+            message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
+            request_id
         });
     }
 });
@@ -64,146 +113,328 @@ router.post('/chat', async (req, res) => {
 
 // Get all products endpoint
 router.get('/products', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/products';
+    const request_id = logger.generateRequestId();
     try {
         const products = await productService.getAllProducts();
+        await logger.info('Fetched all products', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { count: products.length }
+        });
         res.json({
             success: true,
-            data: products
+            data: products,
+            request_id
         });
     } catch (error) {
-        logger.error('Get products error:', error);
+        await logger.error('Get products error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
         res.status(500).json({
             error: 'Internal server error',
-            message: error.message
+            message: error.message,
+            request_id
         });
     }
 });
 
 // Add product endpoint
 router.post('/products', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/products';
+    const request_id = logger.generateRequestId();
     try {
         const productData = req.body;
 
-        // Basic validation
         if (!productData.name || !productData.description) {
+            await logger.warn('Invalid product input', {
+                source: 'Chat Routes',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: 'Name and description are required',
+                details: req.body
+            });
             return res.status(400).json({
-                error: 'Name and description are required'
+                error: 'Name and description are required',
+                request_id
             });
         }
 
-        // Cek apakah produk dengan nama sama sudah ada
         const existingProducts = await productService.getAllProducts();
         const isDuplicate = existingProducts.some(
             p => p.name.trim().toLowerCase() === productData.name.trim().toLowerCase()
         );
         if (isDuplicate) {
+            await logger.warn('Duplicate product name', {
+                source: 'Chat Routes',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: 'Product with the same name already exists',
+                details: req.body
+            });
             return res.status(409).json({
-                error: 'Product with the same name already exists'
+                error: 'Product with the same name already exists',
+                request_id
             });
         }
 
         const product = await productService.addProduct(productData);
+        await logger.info('Product added successfully', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { product }
+        });
         res.json({
             success: true,
-            data: product
+            data: product,
+            request_id
         });
     } catch (error) {
-        logger.error('Add product error:', error);
+        await logger.error('Add product error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
         res.status(500).json({
             error: 'Internal server error',
-            message: error.message
+            message: error.message,
+            request_id
         });
     }
 });
 
 // Edit product endpoint
 router.put('/products/:id', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/products/:id';
+    const request_id = logger.generateRequestId();
     try {
         const productId = req.params.id;
         const updateData = req.body;
         const updated = await productService.updateProduct(productId, updateData);
         if (!updated) {
-            return res.status(404).json({ error: 'Product not found' });
+            await logger.warn('Product not found for update', {
+                source: 'Chat Routes',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: 'Product not found',
+                details: { productId }
+            });
+            return res.status(404).json({ error: 'Product not found', request_id });
         }
-        res.json({ success: true, data: updated });
+        await logger.info('Product updated successfully', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { updated }
+        });
+        res.json({ success: true, data: updated, request_id });
     } catch (error) {
-        logger.error('Update product error:', error);
-        res.status(500).json({ error: 'Internal server error', message: error.message });
+        await logger.error('Update product error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
+        res.status(500).json({ error: 'Internal server error', message: error.message, request_id });
     }
 });
 
 // Delete product endpoint
 router.delete('/products/:id', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/products/:id';
+    const request_id = logger.generateRequestId();
     try {
         const productId = req.params.id;
         const deleted = await productService.deleteProduct(productId);
         if (!deleted) {
-            return res.status(404).json({ error: 'Product not found' });
+            await logger.warn('Product not found for delete', {
+                source: 'Chat Routes',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: 'Product not found',
+                details: { productId }
+            });
+            return res.status(404).json({ error: 'Product not found', request_id });
         }
-        res.json({ success: true, data: deleted });
+        await logger.info('Product deleted successfully', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { deleted }
+        });
+        res.json({ success: true, data: deleted, request_id });
     } catch (error) {
-        logger.error('Delete product error:', error);
-        res.status(500).json({ error: 'Internal server error', message: error.message });
+        await logger.error('Delete product error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
+        res.status(500).json({ error: 'Internal server error', message: error.message, request_id });
     }
 });
 
 router.get('/users', authenticate, authorizeAdmin, async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/users';
+    const request_id = logger.generateRequestId();
     try {
         const users = await historyService.listUsers();
-        res.json({ success: true, data: users });
+        await logger.info('Fetched user list', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { count: users.length }
+        });
+        res.json({ success: true, data: users, request_id });
     } catch (error) {
-        logger.error('List users error:', error);
-        res.status(500).json({ error: 'Internal server error', message: error.message });
+        await logger.error('List users error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
+        res.status(500).json({ error: 'Internal server error', message: error.message, request_id });
     }
 });
 
 // Get chat history for a user (admin or self)
 router.get('/users/:userId/history', authenticate, authorizeSelfOrAdmin, async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/users/:userId/history';
+    const request_id = logger.generateRequestId();
     try {
         const userId = req.params.userId;
         const history = await historyService.getHistory(userId);
-        res.json({ success: true, data: history });
+        await logger.info('Fetched user chat history', {
+            source: 'Chat Routes',
+            user_id: userId,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { count: history.length }
+        });
+        res.json({ success: true, data: history, request_id });
     } catch (error) {
-        logger.error('Get user history error:', error);
-        res.status(500).json({ error: 'Internal server error', message: error.message });
+        await logger.error('Get user history error', {
+            source: 'Chat Routes',
+            user_id: req.params.userId,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
+        res.status(500).json({ error: 'Internal server error', message: error.message, request_id });
     }
 });
 
 // Delete chat history for a user (admin or self)
 router.delete('/users/:userId/history', authenticate, authorizeSelfOrAdmin, async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/users/:userId/history';
+    const request_id = logger.generateRequestId();
     try {
         const userId = req.params.userId;
         await historyService.deleteHistory(userId);
-        res.json({ success: true });
+        await logger.info('Deleted user chat history', {
+            source: 'Chat Routes',
+            user_id: userId,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { userId }
+        });
+        res.json({ success: true, request_id });
     } catch (error) {
-        logger.error('Delete user history error:', error);
-        res.status(500).json({ error: 'Internal server error', message: error.message });
+        await logger.error('Delete user history error', {
+            source: 'Chat Routes',
+            user_id: req.params.userId,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
+        res.status(500).json({ error: 'Internal server error', message: error.message, request_id });
     }
 });
 
 router.get('/stats', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/stats';
+    const request_id = logger.generateRequestId();
     try {
         const [products, users] = await Promise.all([
             productService.getAllProducts(),
             historyService.listUsers()
         ]);
+        await logger.info('Fetched stats', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: {
+                totalProducts: products.length,
+                totalUsers: users.length
+            }
+        });
         res.json({
             success: true,
             data: {
                 totalProducts: products.length,
                 totalUsers: users.length
-            }
+            },
+            request_id
         });
     } catch (error) {
-        logger.error('Stats error:', error);
-        res.status(500).json({ error: 'Internal server error', message: error.message });
+        await logger.error('Stats error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
+        res.status(500).json({ error: 'Internal server error', message: error.message, request_id });
     }
 });
 
 router.post('/login', (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/login';
+    const request_id = logger.generateRequestId();
     const { email, password } = req.body;
 
-    // Simple check - gunakan hash password dan DB di produksi
     if (email === DUMMY_ADMIN.email && password === DUMMY_ADMIN.password) {
         const payload = {
             userId: DUMMY_ADMIN._id,
@@ -211,19 +442,39 @@ router.post('/login', (req, res) => {
         };
 
         const token = jwt.sign(payload, SECRET, { expiresIn: '1h' });
-        logger.info(`User ${DUMMY_ADMIN.email} logged in successfully, with role ${DUMMY_ADMIN.role}, token ${token}`);
+        logger.info(`User ${DUMMY_ADMIN.email} logged in successfully, with role ${DUMMY_ADMIN.role}, token ${token}`, {
+            source: 'Chat Routes',
+            user_id: DUMMY_ADMIN._id,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { email, role: DUMMY_ADMIN.role }
+        });
 
         return res.json({
             success: true,
             token,
             user: payload,
+            request_id
         });
     }
 
-    return res.status(401).json({ error: 'Invalid credentials' });
+    logger.warn('Invalid login attempt', {
+        source: 'Chat Routes',
+        request_id,
+        endpoint,
+        response_time: Date.now() - startTime,
+        message: 'Invalid credentials',
+        details: { email }
+    });
+
+    return res.status(401).json({ error: 'Invalid credentials', request_id });
 });
 
 router.post('/health/test/:service', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = `/api/health/test/${req.params.service}`;
+    const request_id = logger.generateRequestId();
     try {
         const service = req.params.service;
         const fnMap = {
@@ -233,55 +484,115 @@ router.post('/health/test/:service', async (req, res) => {
             firebase: healthMonitor.testFirebaseOnce
         };
         const fn = fnMap[service];
-        if (!fn) return res.status(400).json({ error: 'Unknown service' });
+        if (!fn) {
+            await logger.warn('Unknown health service', {
+                source: 'Chat Routes',
+                request_id,
+                endpoint,
+                response_time: Date.now() - startTime,
+                message: 'Unknown service',
+                details: { service }
+            });
+            return res.status(400).json({ error: 'Unknown service', request_id });
+        }
 
-        // Set status in-progress
         await healthMonitor.saveHealthResult(service, { status: 'in-progress', lastTested: new Date() });
 
-        // Jalankan test 5x
         const result = await healthMonitor.testWithRetry(fn, service, 5);
 
-        // Simpan hasil test
         await healthMonitor.saveHealthResult(service, { ...result, status: 'done', lastTested: new Date() });
 
-        res.json({ success: true, data: result });
+        await logger.info('Health check completed', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { service, result }
+        });
+
+        res.json({ success: true, data: result, request_id });
     } catch (err) {
         await healthMonitor.saveHealthResult(req.params.service, { status: 'error', lastTested: new Date(), error: err.message });
-        res.status(500).json({ error: err.message });
+        await logger.error('Health check error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: err.message,
+            details: err.stack || err
+        });
+        res.status(500).json({ error: err.message, request_id });
     }
 });
 
 // Get health status (from Firestore)
 router.get('/health/status', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/health/status';
+    const request_id = logger.generateRequestId();
     try {
         const snapshot = await db.collection('serviceHealth').get();
         const data = {};
         snapshot.forEach(doc => {
             data[doc.id] = doc.data();
         });
-        res.json({ success: true, data });
+        await logger.info('Fetched health status', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { serviceCount: Object.keys(data).length }
+        });
+        res.json({ success: true, data, request_id });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        await logger.error('Get health status error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: err.message,
+            details: err.stack || err
+        });
+        res.status(500).json({ error: err.message, request_id });
     }
 });
 
 router.get('/error-logs', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/error-logs';
+    const request_id = logger.generateRequestId();
     try {
         const ref = db.collection('errorLogs').doc('main');
         const doc = await ref.get();
         let logs = [];
         if (doc.exists && Array.isArray(doc.data().logs)) {
-            logs = doc.data().logs.slice().reverse(); // terbaru di atas
+            logs = doc.data().logs.slice().reverse();
         }
+        await logger.info('Fetched error logs', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { count: logs.length }
+        });
         res.json({
             success: true,
-            data: logs
+            data: logs,
+            request_id
         });
     } catch (error) {
-        logger.error('Get error logs error:', error);
+        await logger.error('Get error logs error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
         res.status(500).json({
             error: 'Internal server error',
-            message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+            message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
+            request_id
         });
     }
 });

@@ -1,6 +1,19 @@
 const { db } = require('../config/firebase');
 
+function generateRequestId() {
+    // 16 hex digit random
+    return 'req_' + [...Array(16)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+}
+
 const MAX_LOGS = 20;
+
+async function saveLogToDb(level, logObj) {
+    try {
+        await db.collection('systemLogs').add(logObj);
+    } catch (err) {
+        console.error('[LOGGER ERROR] Gagal simpan log ke Firestore:', err);
+    }
+}
 
 const logger = {
     // Severity levels
@@ -10,56 +23,105 @@ const logger = {
         LOW: 'LOW'
     },
 
-    info: (message, ...args) => {
-        console.log(`[INFO] ${new Date().toISOString()}: ${message}`, ...args);
+    generateRequestId,
+
+    info: async (message, {
+        source = 'application',
+        user_id = null,
+        endpoint = null,
+        response_time = null,
+        details = null
+    } = {}) => {
+        const request_id = generateRequestId();
+        const logObj = {
+            timestamp: new Date(),
+            source,
+            user_id,
+            request_id,
+            endpoint,
+            response_time,
+            message,
+            details,
+            level: 'INFO'
+        };
+        console.log(`[INFO] [${request_id}] ${logObj.timestamp.toISOString()}: ${message}`, details);
+        await saveLogToDb('INFO', logObj);
+        return request_id;
     },
 
-    warn: (message, ...args) => {
-        console.warn(`[WARN] ${new Date().toISOString()}: ${message}`, ...args);
-    },
+    warn: async (message, {
+        source = 'application',
+        user_id = null,
+        endpoint = null,
+        response_time = null,
+        details = null
+    } = {}) => {
+        const request_id = generateRequestId();
+        const logObj = {
+            timestamp: new Date(),
+            source,
+            user_id,
+            request_id,
+            endpoint,
+            response_time,
+            message,
+            details,
+            level: 'WARN'
+        };
+        console.warn(`[WARN] [${request_id}] ${logObj.timestamp.toISOString()}: ${message}`, details);
+        await saveLogToDb('WARN', logObj);
+        return request_id;
+        },
 
-    error: async (message, errorObj = {}, severity = null) => {
+        error: async (message, errorObj = {}, severity = null) => {
         const detectedSeverity = severity || logger._detectSeverity(errorObj, message);
 
         console.error(`[ERROR-${detectedSeverity}] ${new Date().toISOString()}: ${message}`, errorObj);
 
         try {
             const errorLog = {
-                severity: detectedSeverity,
-                message: errorObj.message || String(message),
-                code: errorObj.code || null,
-                stack: errorObj.stack || null,
-                timestamp: new Date(),
-                source: logger._detectSource(errorObj),
-                httpStatus: errorObj.status || errorObj.statusCode || null,
-                userId: errorObj.userId || null,
-                requestId: errorObj.requestId || null,
-                endpoint: errorObj.endpoint || null,
-                userAgent: errorObj.userAgent || null,
-                ip: errorObj.ip || null,
-                additionalContext: errorObj.context || {}
+            severity: detectedSeverity,
+            message: errorObj.message || String(message),
+            code: errorObj.code || null,
+            stack: errorObj.stack || null,
+            timestamp: new Date(),
+            source: logger._detectSource(errorObj),
+            httpStatus: errorObj.status || errorObj.statusCode || null,
+            userId: errorObj.userId || null,
+            requestId: errorObj.requestId || null,
+            endpoint: errorObj.endpoint || null,
+            userAgent: errorObj.userAgent || null,
+            ip: errorObj.ip || null,
+            additionalContext: errorObj.context || {}
             };
 
+            // Simpan ke errorLogs (array rolling)
             const ref = db.collection('errorLogs').doc('main');
             const doc = await ref.get();
             let logs = [];
             if (doc.exists && Array.isArray(doc.data().logs)) {
-                logs = doc.data().logs;
+            logs = doc.data().logs;
             }
             logs.push(errorLog);
             if (logs.length > MAX_LOGS) {
-                logs.shift(); // Hapus log paling lama
+            logs.shift(); // Hapus log paling lama
             }
             await ref.set({ logs }, { merge: true });
 
+            // Simpan juga ke log terpusat (systemLogs)
+            await saveLogToDb('ERROR', {
+            ...errorLog,
+            level: 'ERROR'
+            });
+
             // (Opsional) alert untuk HIGH severity
             if (detectedSeverity === logger.SEVERITY.HIGH) {
-                await logger._sendAlert(errorLog);
+            await logger._sendAlert(errorLog);
             }
         } catch (dbErr) {
             console.error(`[LOGGER ERROR] Gagal simpan error ke Firestore:`, dbErr);
         }
-    },
+        },
 
     // Method untuk logging dengan severity eksplisit
     errorHigh: async (message, errorObj = {}) => {
