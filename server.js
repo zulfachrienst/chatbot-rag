@@ -21,18 +21,54 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint (should be first)
 app.get('/', (req, res) => {
+    const startTime = Date.now();
+    const request_id = logger.generateRequestId();
+    logger.info('Root health check accessed', {
+        source: 'server',
+        request_id,
+        endpoint: '/',
+        message: 'Root health check accessed',
+        details: { ip: req.ip }
+    });
     res.json({
         message: 'Product Chatbot API',
         status: 'OK',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        request_id
+    });
+    logger.info('Root health check response sent', {
+        source: 'server',
+        request_id,
+        endpoint: '/',
+        response_time: Date.now() - startTime,
+        message: 'Root health check response sent',
+        details: {}
     });
 });
 
 app.get('/health', (req, res) => {
+    const startTime = Date.now();
+    const request_id = logger.generateRequestId();
+    logger.info('Health endpoint accessed', {
+        source: 'server',
+        request_id,
+        endpoint: '/health',
+        message: 'Health endpoint accessed',
+        details: { ip: req.ip }
+    });
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
-        version: process.env.npm_package_version || '1.0.0'
+        version: process.env.npm_package_version || '1.0.0',
+        request_id
+    });
+    logger.info('Health endpoint response sent', {
+        source: 'server',
+        request_id,
+        endpoint: '/health',
+        response_time: Date.now() - startTime,
+        message: 'Health endpoint response sent',
+        details: {}
     });
 });
 
@@ -44,28 +80,85 @@ app.use(errorHandler);
 
 // 404 handler (must be last)
 app.use((req, res) => {
+    const startTime = Date.now();
+    const request_id = logger.generateRequestId();
+    logger.warn('Route not found', {
+        source: 'server',
+        request_id,
+        endpoint: req.path,
+        message: 'Route not found',
+        details: { method: req.method }
+    });
     res.status(404).json({
         error: 'Route not found',
         path: req.path,
-        method: req.method
+        method: req.method,
+        request_id
+    });
+    logger.warn('404 response sent', {
+        source: 'server',
+        request_id,
+        endpoint: req.path,
+        response_time: Date.now() - startTime,
+        message: '404 response sent',
+        details: { method: req.method }
     });
 });
 
 // Graceful error handling for unhandled promises
 process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    const request_id = logger.generateRequestId();
+    logger.error('Unhandled Rejection at:', {
+        source: 'server',
+        request_id,
+        endpoint: 'process.on.unhandledRejection',
+        message: 'Unhandled Rejection',
+        details: { reason, promise }
+    });
 });
 
 process.on('uncaughtException', (error) => {
-    logger.error('Uncaught Exception:', error);
+    const request_id = logger.generateRequestId();
+    logger.error('Uncaught Exception:', {
+        source: 'server',
+        request_id,
+        endpoint: 'process.on.uncaughtException',
+        message: error.message,
+        details: error.stack || error
+    });
     process.exit(1);
 });
 
 app.listen(PORT, () => {
-    logger.info(`🚀 Server running on port ${PORT}`);
-    logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-    logger.info(`🌐 Health check: http://localhost:${PORT}/health`);
-    logger.info(`💬 Chat API: http://localhost:${PORT}/api/chat`);
+    const request_id = logger.generateRequestId();
+    logger.info(`🚀 Server running on port ${PORT}`, {
+        source: 'server',
+        request_id,
+        endpoint: 'listen',
+        message: `Server running on port ${PORT}`,
+        details: { port: PORT }
+    });
+    logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`, {
+        source: 'server',
+        request_id,
+        endpoint: 'listen',
+        message: `Environment: ${process.env.NODE_ENV || 'development'}`,
+        details: {}
+    });
+    logger.info(`🌐 Health check: http://localhost:${PORT}/health`, {
+        source: 'server',
+        request_id,
+        endpoint: 'listen',
+        message: `Health check: http://localhost:${PORT}/health`,
+        details: {}
+    });
+    logger.info(`💬 Chat API: http://localhost:${PORT}/api/chat`, {
+        source: 'server',
+        request_id,
+        endpoint: 'listen',
+        message: `Chat API: http://localhost:${PORT}/api/chat`,
+        details: {}
+    });
 });
 
 module.exports = app;
