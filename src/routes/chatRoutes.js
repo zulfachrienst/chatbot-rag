@@ -655,4 +655,47 @@ router.get('/system-logs', authenticate, authorizeAdmin, async (req, res) => {
     }
 });
 
+router.delete('/clear-log', authenticate, authorizeAdmin, async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/clear-log';
+    const request_id = logger.generateRequestId();
+    try {
+        // Hapus array rolling log di errorLogs/main
+        await db.collection('errorLogs').doc('main').set({ logs: [] }, { merge: true });
+
+        // Hapus semua dokumen di systemLogs
+        const snapshot = await db.collection('systemLogs').get();
+        const batch = db.batch();
+        snapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+
+        await logger.info('Cleared all logs', {
+            source: 'Chat Routes',
+            user_id: req.user?.userId || req.user?._id || req.user?.id || null,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: 'All logs cleared',
+            details: {}
+        });
+
+        res.json({ success: true, message: 'All logs cleared', request_id });
+    } catch (error) {
+        await logger.error('Clear log error', {
+            source: 'Chat Routes',
+            user_id: req.user?.userId || req.user?._id || req.user?.id || null,
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
+        res.status(500).json({
+            error: 'Internal server error',
+            message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
+            request_id
+        });
+    }
+});
+
 module.exports = router;
