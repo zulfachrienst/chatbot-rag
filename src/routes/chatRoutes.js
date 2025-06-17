@@ -602,18 +602,27 @@ router.get('/system-logs', authenticate, authorizeAdmin, async (req, res) => {
     const endpoint = '/api/system-logs';
     const request_id = logger.generateRequestId();
     try {
-        // Ambil 100 log terbaru dari koleksi systemLogs
-        const snapshot = await db.collection('systemLogs')
-            .orderBy('timestamp', 'desc')
-            .limit(100)
-            .get();
+        // Ambil limit dari query, default 100, maksimal 500
+        let limit = parseInt(req.query.limit, 10);
+        if (isNaN(limit) || limit < 1) limit = 100;
+        if (limit > 500) limit = 500;
+
+        let query = db.collection('systemLogs').orderBy('timestamp', 'desc');
+        if (req.query.startAfter) {
+            // startAfter harus berupa ISO string atau Firestore Timestamp
+            query = query.startAfter(new Date(req.query.startAfter));
+        }
+        const snapshot = await query.limit(limit).get();
 
         const logs = [];
         snapshot.forEach(doc => {
             logs.push({ id: doc.id, ...doc.data() });
         });
 
-        await logger.info('Fetched system logs', {
+        // Kirim nextPageToken (timestamp terakhir) untuk pagination
+        const nextPageToken = logs.length > 0 ? logs[logs.length - 1].timestamp : null;
+
+        await logger.info('Fetched system logs with pagination', {
             source: 'Chat Routes',
             user_id: req.user?.userId || req.user?._id || req.user?.id || null,
             request_id,
@@ -625,6 +634,7 @@ router.get('/system-logs', authenticate, authorizeAdmin, async (req, res) => {
         res.json({
             success: true,
             data: logs,
+            nextPageToken, // gunakan ini untuk startAfter di request berikutnya
             request_id
         });
     } catch (error) {
