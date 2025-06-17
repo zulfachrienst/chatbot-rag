@@ -59,7 +59,7 @@ async function testWithRetry(fn, name, maxRetries = 5) {
             }
         } catch (err) {
             const elapsed = Date.now() - start;
-            logger.warn(`❌ ${name} error on attempt ${attempt} (${elapsed} ms): ${err.message}`);
+            logger.error(`❌ ${name} error on attempt ${attempt} (${elapsed} ms): ${err.message}`);
         }
         await new Promise(res => setTimeout(res, 500));
     }
