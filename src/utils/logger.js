@@ -1,10 +1,12 @@
 const { db } = require('../config/firebase');
 
+const MAX_LOGS = 20;
+
 const logger = {
     // Severity levels
     SEVERITY: {
         HIGH: 'HIGH',
-        MEDIUM: 'MEDIUM', 
+        MEDIUM: 'MEDIUM',
         LOW: 'LOW'
     },
 
@@ -17,12 +19,10 @@ const logger = {
     },
 
     error: async (message, errorObj = {}, severity = null) => {
-        // Auto-detect severity jika tidak diberikan
         const detectedSeverity = severity || logger._detectSeverity(errorObj, message);
-        
+
         console.error(`[ERROR-${detectedSeverity}] ${new Date().toISOString()}: ${message}`, errorObj);
 
-        // Simpan error ke Firestore dengan informasi lebih lengkap
         try {
             const errorLog = {
                 severity: detectedSeverity,
@@ -40,13 +40,22 @@ const logger = {
                 additionalContext: errorObj.context || {}
             };
 
-            await db.collection('errorLogs').add(errorLog);
+            const ref = db.collection('errorLogs').doc('main');
+            const doc = await ref.get();
+            let logs = [];
+            if (doc.exists && Array.isArray(doc.data().logs)) {
+                logs = doc.data().logs;
+            }
+            logs.push(errorLog);
+            if (logs.length > MAX_LOGS) {
+                logs.shift(); // Hapus log paling lama
+            }
+            await ref.set({ logs }, { merge: true });
 
-            // Kirim alert untuk HIGH severity errors
+            // (Opsional) alert untuk HIGH severity
             if (detectedSeverity === logger.SEVERITY.HIGH) {
                 await logger._sendAlert(errorLog);
             }
-
         } catch (dbErr) {
             console.error(`[LOGGER ERROR] Gagal simpan error ke Firestore:`, dbErr);
         }
@@ -72,9 +81,9 @@ const logger = {
         const httpStatus = errorObj.status || errorObj.statusCode;
 
         // HIGH SEVERITY CONDITIONS
-        
+
         // Database & Authentication Critical Errors
-        if (errorCode === 'permission-denied' || 
+        if (errorCode === 'permission-denied' ||
             errorCode === 'unauthenticated' ||
             errorMessage.includes('database connection') ||
             errorMessage.includes('firestore') && errorMessage.includes('permission') ||
@@ -159,14 +168,14 @@ const logger = {
         if (!errorObj.stack) return 'unknown';
 
         const stack = errorObj.stack.toLowerCase();
-        
+
         if (stack.includes('firebase') || stack.includes('firestore')) return 'firebase';
         if (stack.includes('groq')) return 'groq-api';
         if (stack.includes('huggingface')) return 'huggingface-api';
         if (stack.includes('pinecone')) return 'pinecone';
         if (stack.includes('express') || stack.includes('router')) return 'express';
         if (stack.includes('auth')) return 'authentication';
-        
+
         return 'application';
     },
 
@@ -175,7 +184,7 @@ const logger = {
         try {
             // Implementasi alert system (email, Slack, Discord, etc.)
             console.log(`🚨 HIGH SEVERITY ALERT: ${errorLog.message}`);
-            
+
             // Contoh: simpan ke collection khusus untuk alerts
             await db.collection('criticalAlerts').add({
                 ...errorLog,

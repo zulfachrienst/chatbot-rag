@@ -265,4 +265,36 @@ router.get('/health/status', async (req, res) => {
     }
 });
 
+router.get('/error-logs', async (req, res) => {
+    try {
+        const { severity, limit = 20, startAfter } = req.query;
+        let query = db.collection('errorLogs').orderBy('timestamp', 'desc');
+
+        if (severity) {
+            query = query.where('severity', '==', severity);
+        }
+        if (startAfter) {
+            // startAfter harus berupa timestamp ISO string
+            query = query.startAfter(new Date(startAfter));
+        }
+        const snapshot = await query.limit(Number(limit)).get();
+
+        const logs = [];
+        snapshot.forEach(doc => {
+            logs.push({ id: doc.id, ...doc.data() });
+        });
+
+        res.json({
+            success: true,
+            data: logs
+        });
+    } catch (error) {
+        logger.error('Get error logs error:', error);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+        });
+    }
+});
+
 module.exports = router;
