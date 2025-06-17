@@ -267,23 +267,12 @@ router.get('/health/status', async (req, res) => {
 
 router.get('/error-logs', async (req, res) => {
     try {
-        const { severity, limit = 20, startAfter } = req.query;
-        let query = db.collection('errorLogs').orderBy('timestamp', 'desc');
-
-        if (severity) {
-            query = query.where('severity', '==', severity);
+        const ref = db.collection('errorLogs').doc('main');
+        const doc = await ref.get();
+        let logs = [];
+        if (doc.exists && Array.isArray(doc.data().logs)) {
+            logs = doc.data().logs.slice().reverse(); // terbaru di atas
         }
-        if (startAfter) {
-            // startAfter harus berupa timestamp ISO string
-            query = query.startAfter(new Date(startAfter));
-        }
-        const snapshot = await query.limit(Number(limit)).get();
-
-        const logs = [];
-        snapshot.forEach(doc => {
-            logs.push({ id: doc.id, ...doc.data() });
-        });
-
         res.json({
             success: true,
             data: logs
