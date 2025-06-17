@@ -1,4 +1,4 @@
-import { db } from '../config/firebase'; // Pastikan kamu sudah mengatur Firebase di config/firebase.js
+const { db } = require('../config/firebase');
 
 const logger = {
     // Severity levels
