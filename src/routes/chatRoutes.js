@@ -659,62 +659,46 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/clear-logs';
     const request_id = logger.generateRequestId();
-    
+
     try {
-        // Ambil parameter dari request body
-        console.log(req.body);
         const { olderThan = 7, level = null } = req.body;
-        
-        // Hitung cutoff date berdasarkan olderThan (dalam hari)
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - olderThan);
 
-        // Konversi cutoffDate ke Firestore Timestamp jika diperlukan
         const { Timestamp } = require('firebase-admin').firestore;
         const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
-        
+
         let deletedCount = 0;
-        
-        // Hapus array rolling log di errorLogs/main jika level adalah ERROR atau ALL
-        if (level === 'ERROR' || level === null) {
+
+        // Hapus array rolling log di errorLogs/main jika level adalah ERROR atau ALL atau tidak ada filter level
+        if (!level || level === 'ERROR' || level === 'ALL') {
             await db.collection('errorLogs').doc('main').set({ logs: [] }, { merge: true });
-            deletedCount += 1; // Menghitung sebagai 1 operasi delete
+            deletedCount += 1;
         }
-        
-        // Hapus dokumen di systemLogs berdasarkan filter
-        let query = db.collection('systemLogs');
-        
-        // Filter berdasarkan timestamp
-        query = query.where('timestamp', '<', cutoffTimestamp);
-        
-        // Filter berdasarkan level jika level tidak null dan bukan ALL
+
+        // Query systemLogs
+        let query = db.collection('systemLogs').where('timestamp', '<', cutoffTimestamp);
+        // Hanya filter level jika level spesifik (INFO/WARN/ERROR)
         if (level && level !== 'ALL') {
             query = query.where('level', '==', level);
         }
-        
-        // Hapus dalam batch (Firestore limit)
+
+        // Batch delete
         const batchSize = 500;
         let totalDeleted = 0;
-        
         while (true) {
             const snapshot = await query.limit(batchSize).get();
             if (snapshot.empty) break;
-            
+
             const batch = db.batch();
-            snapshot.docs.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-            
+            snapshot.docs.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
             totalDeleted += snapshot.size;
-            
-            // Jika jumlah dokumen kurang dari batchSize, berarti sudah tidak ada lagi
+
             if (snapshot.size < batchSize) break;
         }
-        
         deletedCount += totalDeleted;
-        
-        // Log aktivitas
+
         await logger.info('Cleared logs', {
             source: 'Admin Routes',
             user_id: req.user?.userId || req.user?._id || req.user?.id || null,
@@ -722,19 +706,14 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
             endpoint,
             response_time: Date.now() - startTime,
             message: `Cleared ${deletedCount} logs older than ${olderThan} days${level && level !== 'ALL' ? ` with level ${level}` : ''}`,
-            details: {
-                olderThan,
-                level,
-                deletedCount,
-                cutoffDate
-            }
+            details: { olderThan, level, deletedCount, cutoffDate }
         });
-        
-        res.json({ 
-            success: true, 
-            message: `Successfully cleared ${deletedCount} logs`, 
+
+        res.json({
+            success: true,
+            message: `Successfully cleared ${deletedCount} logs`,
             deletedCount,
-            request_id 
+            request_id
         });
     } catch (error) {
         await logger.error('Clear log error', {
