@@ -22,13 +22,6 @@ router.get('/test', (req, res) => {
 // Chat endpoint
 // ...existing code...
 
-const DUMMY_ADMIN = {
-    _id: '123456',
-    email: 'admin@example.com',
-    password: 'password123',
-    role: 'admin',
-};
-
 router.post('/chat', async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/chat';
@@ -427,48 +420,6 @@ router.get('/stats', async (req, res) => {
         });
         res.status(500).json({ error: 'Internal server error', message: error.message, request_id });
     }
-});
-
-router.post('/login', (req, res) => {
-    const startTime = Date.now();
-    const endpoint = '/api/login';
-    const request_id = logger.generateRequestId();
-    const { email, password } = req.body;
-
-    if (email === DUMMY_ADMIN.email && password === DUMMY_ADMIN.password) {
-        const payload = {
-            userId: DUMMY_ADMIN._id,
-            role: DUMMY_ADMIN.role,
-        };
-
-        const token = jwt.sign(payload, SECRET, { expiresIn: '1h' });
-        logger.info(`User ${DUMMY_ADMIN.email} logged in successfully, with role ${DUMMY_ADMIN.role}, token ${token}`, {
-            source: 'Chat Routes',
-            user_id: DUMMY_ADMIN._id,
-            request_id,
-            endpoint,
-            response_time: Date.now() - startTime,
-            details: { email, role: DUMMY_ADMIN.role }
-        });
-
-        return res.json({
-            success: true,
-            token,
-            user: payload,
-            request_id
-        });
-    }
-
-    logger.warn('Invalid login attempt', {
-        source: 'Chat Routes',
-        request_id,
-        endpoint,
-        response_time: Date.now() - startTime,
-        message: 'Invalid credentials',
-        details: { email }
-    });
-
-    return res.status(401).json({ error: 'Invalid credentials', request_id });
 });
 
 router.post('/health/test/:service', async (req, res) => {

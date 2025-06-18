@@ -1,16 +1,14 @@
-const jwt = require('jsonwebtoken');
+const admin = require('firebase-admin');
 const logger = require('../utils/logger');
 
-const SECRET = process.env.JWT_SECRET || 'your-secret';
-
-// Autentikasi dengan logger detail
-function authenticate(req, res, next) {
+// Autentikasi dengan Firebase ID Token
+async function authenticate(req, res, next) {
     const authHeader = req.headers.authorization;
     const endpoint = req.originalUrl || req.url;
     const request_id = logger.generateRequestId();
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        logger.warn('Missing or invalid token', {
+        await logger.warn('Missing or invalid token', {
             source: 'Auth Middleware',
             user_id: null,
             request_id,
@@ -21,21 +19,21 @@ function authenticate(req, res, next) {
         return res.status(401).json({ error: 'Missing or invalid token', request_id });
     }
 
-    const token = authHeader.split(' ')[1];
+    const idToken = authHeader.split(' ')[1];
 
     try {
-        const payload = jwt.verify(token, SECRET);
-        req.user = payload;
-        logger.info('Authenticated user', {
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        req.user = decoded;
+        await logger.info('Authenticated user (Firebase)', {
             source: 'Auth Middleware',
-            user_id: payload.userId || payload._id || payload.id || null,
+            user_id: decoded.uid,
             request_id,
             endpoint,
-            details: { user: payload }
+            details: { user: decoded }
         });
         next();
     } catch (err) {
-        logger.warn('JWT verification failed', {
+        await logger.warn('Firebase token verification failed', {
             source: 'Auth Middleware',
             user_id: null,
             request_id,
@@ -47,7 +45,7 @@ function authenticate(req, res, next) {
     }
 }
 
-// Otorisasi untuk admin saja
+// Otorisasi untuk admin saja (cek custom claim role)
 function authorizeAdmin(req, res, next) {
     const endpoint = req.originalUrl || req.url;
     const request_id = logger.generateRequestId();
@@ -55,7 +53,7 @@ function authorizeAdmin(req, res, next) {
 
     logger.warn('Forbidden: Admins only', {
         source: 'Auth Middleware',
-        user_id: req.user?.userId || req.user?._id || req.user?.id || null,
+        user_id: req.user?.uid || null,
         request_id,
         endpoint,
         message: 'Forbidden: Admins only',
@@ -67,7 +65,7 @@ function authorizeAdmin(req, res, next) {
 // Otorisasi untuk user pemilik resource atau admin
 function authorizeSelfOrAdmin(req, res, next) {
     const paramUserId = req.params.userId;
-    const tokenUserId = req.user.userId || req.user._id || req.user.id;
+    const tokenUserId = req.user.uid;
     const endpoint = req.originalUrl || req.url;
     const request_id = logger.generateRequestId();
 
