@@ -141,7 +141,7 @@ router.get('/products', async (req, res) => {
 });
 
 // Add product endpoint
-router.post('/products', async (req, res) => {
+router.post('/products', authenticate, authorizeAdmin, async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/products';
     const request_id = logger.generateRequestId();
@@ -213,7 +213,7 @@ router.post('/products', async (req, res) => {
 });
 
 // Edit product endpoint
-router.put('/products/:id', async (req, res) => {
+router.put('/products/:id', authenticate, authorizeAdmin, async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/products/:id';
     const request_id = logger.generateRequestId();
@@ -254,7 +254,7 @@ router.put('/products/:id', async (req, res) => {
 });
 
 // Delete product endpoint
-router.delete('/products/:id', async (req, res) => {
+router.delete('/products/:id', authenticate, authorizeAdmin, async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/products/:id';
     const request_id = logger.generateRequestId();
