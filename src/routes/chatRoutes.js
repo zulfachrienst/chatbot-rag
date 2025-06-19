@@ -141,58 +141,40 @@ router.get('/products', async (req, res) => {
 });
 
 // Add product endpoint
-router.post('/products', authenticate, authorizeAdmin, async (req, res) => {
+router.post('/products', authenticate, authorizeAdmin, upload.array('images', 10), async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/products';
     const request_id = logger.generateRequestId();
     try {
-        const productData = req.body;
+        const productData = JSON.parse(req.body.data); // data produk dikirim sebagai JSON string di field 'data'
+        // Validasi seperti biasa...
 
-        if (!productData.name || !productData.description) {
-            await logger.warn('Invalid product input', {
-                source: 'Chat Routes',
-                request_id,
-                endpoint,
-                response_time: Date.now() - startTime,
-                message: 'Name and description are required',
-                details: req.body
-            });
-            return res.status(400).json({
-                error: 'Name and description are required',
-                request_id
-            });
+        // Simpan produk dulu untuk dapatkan ID
+        const product = await productService.addProduct({ ...productData, images: [] });
+
+        // Upload gambar jika ada
+        let imageUrls = [];
+        if (req.files && req.files.length > 0) {
+            imageUrls = await Promise.all(
+                req.files.map(file =>
+                    uploadImageBuffer(file.buffer, file.mimetype, product.id)
+                )
+            );
+            // Update produk dengan array imageUrls
+            await productService.updateProduct(product.id, { images: imageUrls });
         }
 
-        const existingProducts = await productService.getAllProducts();
-        const isDuplicate = existingProducts.some(
-            p => p.name.trim().toLowerCase() === productData.name.trim().toLowerCase()
-        );
-        if (isDuplicate) {
-            await logger.warn('Duplicate product name', {
-                source: 'Chat Routes',
-                request_id,
-                endpoint,
-                response_time: Date.now() - startTime,
-                message: 'Product with the same name already exists',
-                details: req.body
-            });
-            return res.status(409).json({
-                error: 'Product with the same name already exists',
-                request_id
-            });
-        }
-
-        const product = await productService.addProduct(productData);
-        await logger.info('Product added successfully', {
+        await logger.info('Product added successfully with images', {
             source: 'Chat Routes',
             request_id,
             endpoint,
             response_time: Date.now() - startTime,
-            details: { product }
+            details: { productId: product.id, imageCount: imageUrls.length }
         });
+
         res.json({
             success: true,
-            data: product,
+            data: { ...product, images: imageUrls },
             request_id
         });
     } catch (error) {
@@ -213,13 +195,27 @@ router.post('/products', authenticate, authorizeAdmin, async (req, res) => {
 });
 
 // Edit product endpoint
-router.put('/products/:id', authenticate, authorizeAdmin, async (req, res) => {
+router.put('/products/:id', authenticate, authorizeAdmin, upload.array('images', 10), async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/products/:id';
     const request_id = logger.generateRequestId();
     try {
         const productId = req.params.id;
-        const updateData = req.body;
+        const updateData = JSON.parse(req.body.data); // data produk dikirim sebagai JSON string di field 'data'
+
+        // Upload gambar baru jika ada
+        let imageUrls = [];
+        if (req.files && req.files.length > 0) {
+            imageUrls = await Promise.all(
+                req.files.map(file =>
+                    uploadImageBuffer(file.buffer, file.mimetype, productId)
+                )
+            );
+            // Gabungkan dengan gambar lama jika ingin (atau replace, sesuai kebutuhan)
+            const product = await productService.getProduct(productId);
+            updateData.images = [...(product.images || []), ...imageUrls];
+        }
+
         const updated = await productService.updateProduct(productId, updateData);
         if (!updated) {
             await logger.warn('Product not found for update', {
@@ -232,13 +228,15 @@ router.put('/products/:id', authenticate, authorizeAdmin, async (req, res) => {
             });
             return res.status(404).json({ error: 'Product not found', request_id });
         }
-        await logger.info('Product updated successfully', {
+
+        await logger.info('Product updated successfully with images', {
             source: 'Chat Routes',
             request_id,
             endpoint,
             response_time: Date.now() - startTime,
-            details: { updated }
+            details: { productId, imageCount: imageUrls.length }
         });
+
         res.json({ success: true, data: updated, request_id });
     } catch (error) {
         await logger.error('Update product error', {

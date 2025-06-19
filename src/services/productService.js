@@ -37,10 +37,29 @@ class ProductService {
                 updatedAt: new Date(),
             });
 
-            // (Opsional) Update embedding & Pinecone jika description/name/category berubah
-            // (Implementasi sesuai kebutuhan)
-
+            // Ambil data terbaru
             const updatedDoc = await docRef.get();
+            const updatedData = { id: updatedDoc.id, ...updatedDoc.data() };
+
+            // Cek apakah field relevan berubah
+            if (updateData.name || updateData.description || updateData.category) {
+                // Generate embedding baru
+                const productText = `${updatedData.name} ${updatedData.description} ${updatedData.category}`;
+                const embedding = await embeddingService.generateEmbedding(productText);
+
+                // Update Pinecone
+                await vectorService.upsertVectors([{
+                    id: productId,
+                    values: embedding,
+                    metadata: {
+                        name: updatedData.name,
+                        category: updatedData.category,
+                        price: updatedData.price,
+                        description: updatedData.description?.substring(0, 200) || '',
+                    }
+                }]);
+            }
+
             await logger.info('Product updated successfully', {
                 source: 'Product Service',
                 request_id,
@@ -48,7 +67,7 @@ class ProductService {
                 response_time: Date.now() - startTime,
                 details: { id: updatedDoc.id, ...updatedDoc.data() }
             });
-            return { id: updatedDoc.id, ...updatedDoc.data() };
+            return updatedData;
         } catch (error) {
             await logger.error('Error updating product', {
                 source: 'Product Service',
