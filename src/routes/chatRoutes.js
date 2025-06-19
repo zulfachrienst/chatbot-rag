@@ -6,10 +6,10 @@ const historyService = require('../services/historyService');
 const { authenticate, authorizeAdmin, authorizeSelfOrAdmin } = require('../middleware/auth');
 const healthMonitor = require('../services/healthMonitorService');
 const db = require('../config/firebase').db; // Pastikan kamu sudah mengatur Firebase di config/firebase.js
+const upload = require('../middleware/upload');
+const { uploadImageBuffer } = require('../utils/firebaseStorage');
 
-const jwt = require('jsonwebtoken');
 const router = express.Router();
-const SECRET = process.env.JWT_SECRET || 'your-secret';
 
 // Test route
 router.get('/test', (req, res) => {
