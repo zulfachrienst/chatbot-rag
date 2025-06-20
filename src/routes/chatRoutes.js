@@ -147,7 +147,6 @@ router.post('/products', authenticate, authorizeAdmin, upload.array('images', 10
     const request_id = logger.generateRequestId();
     try {
         const productData = JSON.parse(req.body.data); // data produk dikirim sebagai JSON string di field 'data'
-        // Validasi seperti biasa...
 
         // Simpan produk dulu untuk dapatkan ID
         const product = await productService.addProduct({ ...productData, images: [] });
