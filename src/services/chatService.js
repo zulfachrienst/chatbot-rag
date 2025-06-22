@@ -43,9 +43,13 @@ Apakah user ingin melihat semua produk yang tersedia? Jawab hanya "yes" atau "no
                 // Build context string dari related products
                 let productContext = '';
                 if (relatedProducts.length > 0) {
-                    productContext = relatedProducts.map(product =>
-                        `- ${product.name}: ${product.description} (Price: ${product.price})`
-                    ).join('\n');
+                    productContext = relatedProducts.map(product => {
+                        let imagesText = '';
+                        if (product.images && product.images.length > 0) {
+                            imagesText = `\nGambar: ${product.images.join(', ')}`;
+                        }
+                        return `- ${product.name}: ${product.description} (Price: ${product.price})${imagesText}`;
+                    }).join('\n');
                 }
 
                 const systemPrompt = `You are a friendly and helpful virtual sales assistant.
