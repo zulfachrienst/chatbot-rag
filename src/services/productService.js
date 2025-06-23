@@ -3,6 +3,39 @@ const embeddingService = require('./embeddingService');
 const vectorService = require('./vectorService');
 const logger = require('../utils/logger');
 
+// Helper untuk slugify nama produk
+function slugify(text) {
+    return text.toString().toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
+}
+
+// Default struktur produk future-proof
+const defaultProduct = {
+    slug: '',
+    name: '',
+    description: '',
+    category: [],
+    tags: [],
+    brand: '',
+    price: 0,
+    discount: { percent: 0, priceAfterDiscount: 0 },
+    stock: 0,
+    features: [],
+    specs: [],
+    variants: [],
+    images: [],
+    rating: { average: 0, count: 0 },
+    status: 'active',
+    isFeatured: false,
+    warehouseLocation: '',
+    createdAt: null,
+    updatedAt: null
+};
+
 class ProductService {
     constructor() {
         this.collection = db.collection('products');
@@ -32,10 +65,27 @@ class ProductService {
                 return null;
             }
 
-            await docRef.update({
+            // Gabungkan dengan default dan data lama
+            const oldData = doc.data();
+            const mergedData = {
+                ...defaultProduct,
+                ...oldData,
                 ...updateData,
                 updatedAt: new Date(),
-            });
+                slug: updateData.slug || oldData.slug || slugify(updateData.name || oldData.name || '')
+            };
+
+            // Validasi tipe data array/object
+            if (!Array.isArray(mergedData.category)) mergedData.category = [];
+            if (!Array.isArray(mergedData.tags)) mergedData.tags = [];
+            if (!Array.isArray(mergedData.images)) mergedData.images = [];
+            if (!Array.isArray(mergedData.features)) mergedData.features = [];
+            if (!Array.isArray(mergedData.specs)) mergedData.specs = [];
+            if (!Array.isArray(mergedData.variants)) mergedData.variants = [];
+            if (typeof mergedData.discount !== 'object') mergedData.discount = { percent: 0, priceAfterDiscount: mergedData.price };
+            if (typeof mergedData.rating !== 'object') mergedData.rating = { average: 0, count: 0 };
+
+            await docRef.update(mergedData);
 
             // Ambil data terbaru
             const updatedDoc = await docRef.get();
@@ -65,7 +115,7 @@ class ProductService {
                 request_id,
                 endpoint,
                 response_time: Date.now() - startTime,
-                details: { id: updatedDoc.id, ...updatedDoc.data() }
+                details: updatedData
             });
             return updatedData;
         } catch (error) {
@@ -139,15 +189,31 @@ class ProductService {
         const endpoint = '/productService/addProduct';
         const request_id = logger.generateRequestId();
         try {
-            // Add to Firestore
-            const docRef = await this.collection.add({
+            // Gabungkan dengan default
+            const now = new Date();
+            const mergedData = {
+                ...defaultProduct,
                 ...productData,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            });
+                createdAt: now,
+                updatedAt: now,
+                slug: productData.slug || slugify(productData.name || '')
+            };
+
+            // Validasi tipe data array/object
+            if (!Array.isArray(mergedData.category)) mergedData.category = [];
+            if (!Array.isArray(mergedData.tags)) mergedData.tags = [];
+            if (!Array.isArray(mergedData.images)) mergedData.images = [];
+            if (!Array.isArray(mergedData.features)) mergedData.features = [];
+            if (!Array.isArray(mergedData.specs)) mergedData.specs = [];
+            if (!Array.isArray(mergedData.variants)) mergedData.variants = [];
+            if (typeof mergedData.discount !== 'object') mergedData.discount = { percent: 0, priceAfterDiscount: mergedData.price };
+            if (typeof mergedData.rating !== 'object') mergedData.rating = { average: 0, count: 0 };
+
+            // Add to Firestore
+            const docRef = await this.collection.add(mergedData);
 
             // Generate embedding for product description
-            const productText = `${productData.name} ${productData.description} ${productData.category}`;
+            const productText = `${mergedData.name} ${mergedData.description} ${mergedData.category}`;
             const embedding = await embeddingService.generateEmbedding(productText);
 
             // Add to Pinecone
@@ -155,10 +221,10 @@ class ProductService {
                 id: docRef.id,
                 values: embedding,
                 metadata: {
-                    name: productData.name,
-                    category: productData.category,
-                    price: productData.price,
-                    description: productData.description.substring(0, 200), // Limit metadata size
+                    name: mergedData.name,
+                    category: mergedData.category,
+                    price: mergedData.price,
+                    description: mergedData.description.substring(0, 200),
                 }
             }]);
 
@@ -167,9 +233,9 @@ class ProductService {
                 request_id,
                 endpoint,
                 response_time: Date.now() - startTime,
-                details: { id: docRef.id, ...productData }
+                details: { id: docRef.id, ...mergedData }
             });
-            return { id: docRef.id, ...productData };
+            return { id: docRef.id, ...mergedData };
         } catch (error) {
             await logger.error('Error adding product', {
                 source: 'Product Service',

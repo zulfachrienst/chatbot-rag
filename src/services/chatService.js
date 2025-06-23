@@ -48,7 +48,44 @@ Apakah user ingin melihat semua produk yang tersedia? Jawab hanya "yes" atau "no
                         if (product.images && product.images.length > 0) {
                             imagesText = `\nGambar: ${product.images.join(', ')}`;
                         }
-                        return `- ${product.name}: ${product.description} (Price: ${product.price})${imagesText}`;
+                        // Future-proof: tampilkan fitur, spesifikasi, diskon, rating, dsb jika ada
+                        let featuresText = '';
+                        if (product.features && product.features.length > 0) {
+                            featuresText = `\nFitur: ${product.features.join(', ')}`;
+                        }
+                        let specsText = '';
+                        if (product.specs && product.specs.length > 0) {
+                            specsText = `\nSpesifikasi: ${product.specs.map(s => `${s.key}: ${s.value}`).join(', ')}`;
+                        }
+                        let discountText = '';
+                        if (product.discount && product.discount.percent > 0) {
+                            discountText = `\nDiskon: ${product.discount.percent}% (Harga setelah diskon: ${product.discount.priceAfterDiscount})`;
+                        }
+                        let ratingText = '';
+                        if (product.rating && product.rating.count > 0) {
+                            ratingText = `\nRating: ${product.rating.average} (${product.rating.count} ulasan)`;
+                        }
+                        let variantsText = '';
+                        if (product.variants && product.variants.length > 0) {
+                            variantsText = `\nVarian: ${product.variants.map(v => `${v.name}: ${v.options.join(', ')}`).join('; ')}`;
+                        }
+                        let stockText = '';
+                        if (typeof product.stock === 'number') {
+                            stockText = `\nStok: ${product.stock}`;
+                        }
+                        let warehouseText = '';
+                        if (product.warehouseLocation) {
+                            warehouseText = `\nLokasi Gudang: ${product.warehouseLocation}`;
+                        }
+                        let statusText = '';
+                        if (product.status) {
+                            statusText = `\nStatus: ${product.status}`;
+                        }
+                        let isFeaturedText = '';
+                        if (product.isFeatured) {
+                            isFeaturedText = `\nProduk Unggulan`;
+                        }
+                        return `- ${product.name}: ${product.description} (Harga: ${product.price})${discountText}${featuresText}${specsText}${variantsText}${ratingText}${stockText}${warehouseText}${statusText}${isFeaturedText}${imagesText}`;
                     }).join('\n');
                 }
 
@@ -60,6 +97,7 @@ ${productContext || '[No relevant products found in the database]'}
 
 Instructions:
 - Always respond in the same language the user used (English or Bahasa Indonesia).
+- If a product has image URLs, you may include them in your reply if the user asks for images or photos.
 - If the user mixes a few English words into an otherwise Bahasa Indonesia message, **keep using Bahasa Indonesia** as the primary language in your response.
 - If user requests all products, show the list clearly and concisely.
 - If relevant products are available, suggest the best option(s) clearly, highlighting key features and price.
