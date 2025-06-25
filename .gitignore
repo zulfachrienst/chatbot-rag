@@ -2,7 +2,7 @@
 node_modules/
 firebase-service.json
 md.bat
-
+scripts/json/*
 # Logs
 logs/
 *.log
