@@ -40,7 +40,7 @@ Apakah user ingin melihat semua produk yang tersedia? Jawab hanya "yes" atau "no
         const request_id = logger.generateRequestId();
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
-                // Build context string dari related products
+                // Build context string dari related products/products
                 let productContext = '';
                 if (relatedProducts.length > 0) {
                     productContext = relatedProducts.map(product => {
