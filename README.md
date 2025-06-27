@@ -8,7 +8,7 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 - **Chatbot API**: Endpoint `/api/chat` untuk menerima pesan user dan membalas dengan konteks produk.
 - **Integrasi WhatsApp**: Bot WhatsApp otomatis membalas chat user dengan jawaban AI.
-- **Manajemen Produk**: CRUD produk, upload gambar, update embedding Pinecone.
+- **Manajemen Produk**: CRUD produk, upload gambar utama & per variant, update embedding Pinecone.
 - **RAG (Retrieval-Augmented Generation)**: Jawaban AI selalu relevan dengan data produk yang diisi admin.
 - **Riwayat Chat**: Menyimpan dan mengambil riwayat chat per user.
 - **Health Monitoring**: Cek status layanan eksternal (HuggingFace, Pinecone, Firebase, GROQ).
@@ -85,11 +85,11 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 ### Produk
 
-- **GET `/api/products`**: List produk.
-- **POST `/api/products`**: Tambah produk (admin).
+- **GET `/api/products`**: List produk (support pagination & filter).
+- **GET `/api/products/:id`**: Detail produk.
+- **POST `/api/products`**: Tambah produk (admin, support upload gambar utama & variant).
 - **PUT `/api/products/:id`**: Update produk (admin).
 - **DELETE `/api/products/:id`**: Hapus produk (admin).
-- **POST `/api/products/:id/upload-image`**: Upload gambar produk.
 
 ### Riwayat Chat
 
@@ -98,7 +98,7 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 ### Admin & Monitoring
 
-- **GET `/api/logs`**: List system logs (admin).
+- **GET `/api/logs`**: List system logs (admin, support filter & pagination).
 - **DELETE `/api/clear-logs`**: Hapus log lama (admin).
 - **GET `/api/health`**: Health check semua layanan eksternal.
 
@@ -110,7 +110,6 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 #### POST `/api/chat`
 
-- **Deskripsi:** Kirim pesan user ke AI, dapatkan balasan dan produk relevan.
 - **Headers:**  
   `Content-Type: application/json`  
   `Authorization: Bearer <Firebase_ID_Token>`
@@ -155,9 +154,10 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 #### GET `/api/products`
 
-- **Deskripsi:** Ambil list semua produk.
 - **Headers:**  
   `Authorization: Bearer <Firebase_ID_Token>`
+- **Query:**  
+  - `limit`, `startAfter`, `search`, `category`, `minPrice`, `maxPrice`
 - **Response:**
     ```json
     {
@@ -179,9 +179,18 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
           "...": "..."
         }
       ],
+      "nextPageToken": "xxx",
       "request_id": "req_abcdef1234567890"
     }
     ```
+
+#### GET `/api/products/:id`
+
+- **Deskripsi:** Ambil detail produk.
+- **Headers:**  
+  `Authorization: Bearer <Firebase_ID_Token>`
+- **Response:**  
+  Sama seperti GET `/api/products` (single object).
 
 #### POST `/api/products`
 
@@ -232,7 +241,7 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 - **Headers:**  
   `Authorization: Bearer <Firebase_ID_Token>`
 - **Body:**  
-  Sama seperti POST `/api/products` (lihat di atas).
+  Sama seperti POST `/api/products`.
 
 #### DELETE `/api/products/:id`
 
@@ -254,7 +263,6 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 #### GET `/api/history/:userId`
 
-- **Deskripsi:** Ambil riwayat chat user tertentu.
 - **Headers:**  
   `Authorization: Bearer <Firebase_ID_Token>`
 - **Response:**
@@ -271,7 +279,6 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 #### DELETE `/api/history/:userId`
 
-- **Deskripsi:** Hapus riwayat chat user tertentu (hanya user sendiri atau admin).
 - **Headers:**  
   `Authorization: Bearer <Firebase_ID_Token>`
 - **Response:**  
@@ -283,12 +290,12 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 #### GET `/api/logs`
 
-- **Deskripsi:** List system logs (admin).
 - **Headers:**  
   `Authorization: Bearer <Firebase_ID_Token>`
 - **Query:**  
   - `severity` (opsional): `HIGH`, `MEDIUM`, `LOW`
   - `limit` (opsional): default 20, max 100
+  - `startAfter` (opsional): untuk pagination
 - **Response:**
     ```json
     {
@@ -303,13 +310,13 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
           "request_id": "req_abcdef1234567890"
         }
       ],
+      "nextPageToken": "xxx",
       "request_id": "req_abcdef1234567890"
     }
     ```
 
 #### DELETE `/api/clear-logs`
 
-- **Deskripsi:** Hapus log lama (admin).
 - **Headers:**  
   `Authorization: Bearer <Firebase_ID_Token>`
 - **Body (opsional):**
@@ -330,7 +337,6 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 #### GET `/api/health`
 
-- **Deskripsi:** Health check semua layanan eksternal.
 - **Headers:**  
   `Authorization: Bearer <Firebase_ID_Token>`
 - **Response:**
@@ -349,7 +355,7 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 ---
 
-### ⚠️ **Catatan Umum**
+### ⚠️ Catatan Umum
 
 - Semua endpoint (kecuali `/api/chat`) membutuhkan autentikasi Firebase ID Token di header Authorization.
 - Untuk upload gambar produk/variant, gunakan field `images` dan `variant_{vIdx}_{oIdx}_images` di multipart form-data.
@@ -357,37 +363,29 @@ Chatbot ini adalah solusi AI asisten penjualan produk berbasis Node.js, dengan f
 
 ---
 
-**Untuk detail struktur produk, lihat bagian [Data Produk](#data-produk) di bawah.**
-
----
-
 ### Upload Gambar Produk & Variant (Multipart Form-Data)
 
 #### POST `/api/products` atau PUT `/api/products/:id`
 
-**Deskripsi:**  
-Upload gambar utama dan gambar per variant option dalam satu request.
+- **Headers:**  
+  `Authorization: Bearer <Firebase_ID_Token>`
+- **Body:**  
+  Kirim sebagai `multipart/form-data`:
+    - `data`: JSON string produk (lihat contoh di atas)
+    - `images`: file gambar utama produk (bisa multiple)
+    - `variant_{vIdx}_{oIdx}_images`: file gambar untuk variant option tertentu (bisa multiple per option)
+      - Contoh: `variant_0_1_images` untuk variant ke-0, option ke-1
 
-**Headers:**  
-`Authorization: Bearer <Firebase_ID_Token>`
-
-**Body:**  
-Kirim sebagai `multipart/form-data`:
-- `data`: JSON string produk (lihat contoh di atas)
-- `images`: file gambar utama produk (bisa multiple)
-- `variant_{vIdx}_{oIdx}_images`: file gambar untuk variant option tertentu (bisa multiple per option)
-  - Contoh: `variant_0_1_images` untuk variant ke-0, option ke-1
-
-**Contoh penggunaan dengan curl:**
-```sh
-curl -X POST http://localhost:3000/api/products \
-  -H "Authorization: Bearer <Firebase_ID_Token>" \
-  -F "data={...}" \
-  -F "images=@/path/to/main1.jpg" \
-  -F "images=@/path/to/main2.jpg" \
-  -F "variant_0_0_images=@/path/to/varian1a.jpg" \
-  -F "variant_0_1_images=@/path/to/varian1b.jpg"
-```
+- **Contoh penggunaan dengan curl:**
+    ```sh
+    curl -X POST http://localhost:3000/api/products \
+      -H "Authorization: Bearer <Firebase_ID_Token>" \
+      -F "data={...}" \
+      -F "images=@/path/to/main1.jpg" \
+      -F "images=@/path/to/main2.jpg" \
+      -F "variant_0_0_images=@/path/to/varian1a.jpg" \
+      -F "variant_0_1_images=@/path/to/varian1b.jpg"
+    ```
 
 ---
 
@@ -395,31 +393,24 @@ curl -X POST http://localhost:3000/api/products \
 
 #### GET `/api/products?limit=20&startAfter=<lastId>`
 
-**Deskripsi:**  
-Ambil produk dengan pagination.
-
-**Query:**
-- `limit`: jumlah produk per page (default 20, max 100)
-- `startAfter`: id produk terakhir dari page sebelumnya (untuk next page)
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [ ... ],
-  "nextPageToken": "xxx", // gunakan untuk startAfter di request berikutnya
-  "request_id": "req_abcdef1234567890"
-}
-```
+- **Query:**
+  - `limit`: jumlah produk per page (default 20, max 100)
+  - `startAfter`: id produk terakhir dari page sebelumnya (untuk next page)
+- **Response:**
+    ```json
+    {
+      "success": true,
+      "data": [ ... ],
+      "nextPageToken": "xxx",
+      "request_id": "req_abcdef1234567890"
+    }
+    ```
 
 #### GET `/api/logs?limit=20&startAfter=<timestamp>`
 
-**Deskripsi:**  
-Ambil log dengan pagination.
-
-**Query:**
-- `limit`: jumlah log per page
-- `startAfter`: timestamp terakhir dari page sebelumnya
+- **Query:**
+  - `limit`: jumlah log per page
+  - `startAfter`: timestamp terakhir dari page sebelumnya
 
 ---
 
@@ -427,26 +418,20 @@ Ambil log dengan pagination.
 
 #### GET `/api/products?search=keyword&category=Smartphone&minPrice=1000000&maxPrice=5000000`
 
-**Deskripsi:**  
-Filter produk berdasarkan keyword, kategori, dan rentang harga.
-
-**Query:**
-- `search`: kata kunci pencarian (nama/brand/fitur)
-- `category`: filter kategori
-- `minPrice`, `maxPrice`: filter harga
+- **Query:**
+  - `search`: kata kunci pencarian (nama/brand/fitur)
+  - `category`: filter kategori
+  - `minPrice`, `maxPrice`: filter harga
 
 ---
 
 ### Export Produk ke JSON
 
-**Deskripsi:**  
-Export seluruh produk ke file JSON lokal.
-
-**Cara pakai:**
-```sh
-node scripts/getAllJSONProduct.js
-```
-File akan tersimpan di `scripts/json/{timestamp}.json`.
+- Jalankan:
+    ```sh
+    node scripts/getAllJSONProduct.js
+    ```
+  File akan tersimpan di `scripts/json/{timestamp}.json`.
 
 ---
 
@@ -541,8 +526,16 @@ Struktur produk future-proof, contoh:
   "discount": { "percent": 15, "priceAfterDiscount": 2231250 },
   "stock": 25,
   "features": ["Baterai 5000mAh", "Layar 6,78 inci"],
-  "specs": [{ "key": "RAM", "value": "8GB" }, ...],
-  "variants": [{ "name": "Warna", "options": ["Hitam", "Biru"] }],
+  "specs": [{ "key": "RAM", "value": "8GB" }, { "key": "ROM", "value": "128GB" }],
+  "variants": [
+    {
+      "name": "Warna",
+      "options": [
+        { "value": "Hitam", "images": ["https://..."] },
+        { "value": "Biru", "images": ["https://..."] }
+      ]
+    }
+  ],
   "images": ["https://..."],
   "rating": { "average": 4.5, "count": 123 },
   "status": "active",
