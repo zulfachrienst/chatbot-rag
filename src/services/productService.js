@@ -2,7 +2,9 @@ const { db } = require('../config/firebase');
 const embeddingService = require('./embeddingService');
 const vectorService = require('./vectorService');
 const logger = require('../utils/logger');
-const { getStorage } = require('firebase-admin/storage'); // pastikan sudah diinisialisasi di config/firebase.js
+const { getStorage } = require('firebase-admin/storage'); // pastikan sudah diinisialisasi
+const { deleteFileByUrl } = require('../utils/firebaseStorage');
+
 
 // Helper untuk slugify nama produk
 function slugify(text) {
@@ -65,6 +67,24 @@ function normalizeVariants(variants) {
     });
 }
 
+// Helper: dapatkan semua URL gambar dari struktur produk (utama & variant)
+function extractAllImageUrls(product) {
+    let urls = [];
+    if (Array.isArray(product.images)) urls = urls.concat(product.images);
+    if (Array.isArray(product.variants)) {
+        for (const variant of product.variants) {
+            if (Array.isArray(variant.options)) {
+                for (const option of variant.options) {
+                    if (Array.isArray(option.images)) {
+                        urls = urls.concat(option.images);
+                    }
+                }
+            }
+        }
+    }
+    return urls;
+}
+
 // Helper untuk menghapus semua file di folder produk (prefix)
 async function deleteAllFilesByPrefix(prefix) {
     const bucket = getStorage().bucket();
@@ -121,6 +141,12 @@ class ProductService {
             if (typeof mergedData.rating !== 'object') mergedData.rating = { average: 0, count: 0 };
             // Normalisasi variants agar setiap option object { value, images }
             mergedData.variants = normalizeVariants(mergedData.variants);
+
+            // --- Hapus file gambar yang dihapus dari data (utama & variant) ---
+            const oldUrls = extractAllImageUrls(oldData);
+            const newUrls = extractAllImageUrls(mergedData);
+            const deletedUrls = oldUrls.filter(url => !newUrls.includes(url));
+            await Promise.all(deletedUrls.map(deleteFileByUrl));
 
             await docRef.update(mergedData);
 

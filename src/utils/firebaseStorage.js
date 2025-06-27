@@ -21,4 +21,17 @@ async function uploadImageBuffer(buffer, mimetype, productId) {
     return url;
 }
 
-module.exports = { uploadImageBuffer };
+/**
+ * Menghapus file dari Firebase Storage berdasarkan URL download.
+ * @param {string} url - URL download file di Firebase Storage
+ */
+async function deleteFileByUrl(url) {
+    if (!url) return;
+    const match = url.match(/\/o\/(.+)\?alt=media/);
+    if (!match) return;
+    const filePath = decodeURIComponent(match[1]);
+    const bucket = getStorage().bucket();
+    await bucket.file(filePath).delete().catch(() => {});
+}
+
+module.exports = { uploadImageBuffer, deleteFileByUrl };
