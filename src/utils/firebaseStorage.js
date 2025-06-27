@@ -30,7 +30,7 @@ async function deleteFileByUrl(url) {
     const match = url.match(/\/o\/(.+)\?alt=media/);
     if (!match) return;
     const filePath = decodeURIComponent(match[1]);
-    const bucket = getStorage().bucket();
+    const bucket = admin.storage().bucket();
     await bucket.file(filePath).delete().catch(() => {});
 }
 

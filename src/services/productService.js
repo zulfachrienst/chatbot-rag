@@ -2,7 +2,6 @@ const { db } = require('../config/firebase');
 const embeddingService = require('./embeddingService');
 const vectorService = require('./vectorService');
 const logger = require('../utils/logger');
-const { getStorage } = require('firebase-admin/storage'); // pastikan sudah diinisialisasi
 const { deleteFileByUrl } = require('../utils/firebaseStorage');
 
 
