@@ -26,21 +26,15 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Hitam",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F1dagw4o0eAzjeIBxUBvk%2F8c4ca3be-3b8d-4e87-86c4-d73d5941510b?alt=media&token=e8fbefb1-fd12-4a09-9af0-9cb53fb08f6a"
-                        ]
+                        images: []
                     },
                     {
                         value: "Biru",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F1dagw4o0eAzjeIBxUBvk%2F8c4ca3be-3b8d-4e87-86c4-d73d5941510b?alt=media&token=e8fbefb1-fd12-4a09-9af0-9cb53fb08f6a"
-                        ]
+                        images: []
                     },
                     {
                         value: "Silver",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F1dagw4o0eAzjeIBxUBvk%2F8c4ca3be-3b8d-4e87-86c4-d73d5941510b?alt=media&token=e8fbefb1-fd12-4a09-9af0-9cb53fb08f6a"
-                        ]
+                        images: []
                     }
                 ]
             }
@@ -78,15 +72,11 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Biru",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F1fNNAvi7dhnPYVzo5di6%2F8771164c-3fc2-4365-8534-89c3bc9349f2?alt=media&token=0ad71a82-3e3b-4b61-8227-d683b3377bc7"
-                        ]
+                        images: []
                     },
                     {
                         value: "Hitam",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F1fNNAvi7dhnPYVzo5di6%2F8771164c-3fc2-4365-8534-89c3bc9349f2?alt=media&token=0ad71a82-3e3b-4b61-8227-d683b3377bc7"
-                        ]
+                        images: []
                     }
                 ]
             }
@@ -124,21 +114,17 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Gradien Biru",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F6GSbtcNb4VRyTkyzhyYD%2F3397d12b-beb7-414a-9082-320af818cf8d?alt=media&token=aaefa2ed-3314-4328-8341-fc1e632d4371"
-                        ]
+                        images: []
                     },
                     {
                         value: "Hitam",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F6GSbtcNb4VRyTkyzhyYD%2F3397d12b-beb7-414a-9082-320af818cf8d?alt=media&token=aaefa2ed-3314-4328-8341-fc1e632d4371"
-                        ]
+                        images: []
                     }
                 ]
             }
         ],
         images: [
-            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F6GSbtcNb4VRyTkyzhyYD%2F3397d12b-beb7-414a-9082-320af818cf8d?alt=media&token=aaefa2ed-3314-4328-8341-fc1e632d4371"
+            
         ],
         rating: { average: 4.2, count: 156 },
         status: "active",
@@ -170,27 +156,21 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Biru",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F8MbIzMYRHre3tTvWi2EP%2F9c95c1dc-f60e-4e63-9f3f-625be2dc0b74?alt=media&token=a0f0f72c-f8ec-457f-b5af-c219446cf8e6"
-                        ]
+                        images: []
                     },
                     {
                         value: "Hitam",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F8MbIzMYRHre3tTvWi2EP%2F9c95c1dc-f60e-4e63-9f3f-625be2dc0b74?alt=media&token=a0f0f72c-f8ec-457f-b5af-c219446cf8e6"
-                        ]
+                        images: []
                     },
                     {
                         value: "Putih",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F8MbIzMYRHre3tTvWi2EP%2F9c95c1dc-f60e-4e63-9f3f-625be2dc0b74?alt=media&token=a0f0f72c-f8ec-457f-b5af-c219446cf8e6"
-                        ]
+                        images: []
                     }
                 ]
             }
         ],
         images: [
-            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F8MbIzMYRHre3tTvWi2EP%2F9c95c1dc-f60e-4e63-9f3f-625be2dc0b74?alt=media&token=a0f0f72c-f8ec-457f-b5af-c219446cf8e6"
+            
         ],
         rating: { average: 4.1, count: 95 },
         status: "active",
@@ -222,27 +202,21 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Mint",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F8f9716V89jYjkChh5LW3%2F5a657aa5-c78f-44a1-b317-b04461f348e7?alt=media&token=20f30e2a-639b-401d-b9fa-683f1521b4b3"
-                        ]
+                        images: []
                     },
                     {
                         value: "Hitam",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F8f9716V89jYjkChh5LW3%2F5a657aa5-c78f-44a1-b317-b04461f348e7?alt=media&token=20f30e2a-639b-401d-b9fa-683f1521b4b3"
-                        ]
+                        images: []
                     },
                     {
                         value: "Biru",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F8f9716V89jYjkChh5LW3%2F5a657aa5-c78f-44a1-b317-b04461f348e7?alt=media&token=20f30e2a-639b-401d-b9fa-683f1521b4b3"
-                        ]
+                        images: []
                     }
                 ]
             }
         ],
         images: [
-            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2F8f9716V89jYjkChh5LW3%2F5a657aa5-c78f-44a1-b317-b04461f348e7?alt=media&token=20f30e2a-639b-401d-b9fa-683f1521b4b3"
+            
         ],
         rating: { average: 4.4, count: 78 },
         status: "active",
@@ -274,27 +248,21 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Hitam",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FCI1GhRVVq9DRVfsFTFfj%2Feddf8af4-9f74-4971-a4d0-1a0162cc2ae8?alt=media&token=ef1c11fb-356e-4f51-9b48-403753fe33a8"
-                        ]
+                        images: []
                     },
                     {
                         value: "Biru",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FCI1GhRVVq9DRVfsFTFfj%2Feddf8af4-9f74-4971-a4d0-1a0162cc2ae8?alt=media&token=ef1c11fb-356e-4f51-9b48-403753fe33a8"
-                        ]
+                        images: []
                     },
                     {
                         value: "Gold",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FCI1GhRVVq9DRVfsFTFfj%2Feddf8af4-9f74-4971-a4d0-1a0162cc2ae8?alt=media&token=ef1c11fb-356e-4f51-9b48-403753fe33a8"
-                        ]
+                        images: []
                     }
                 ]
             }
         ],
         images: [
-            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FCI1GhRVVq9DRVfsFTFfj%2Feddf8af4-9f74-4971-a4d0-1a0162cc2ae8?alt=media&token=ef1c11fb-356e-4f51-9b48-403753fe33a8"
+            
         ],
         rating: { average: 4.3, count: 134 },
         status: "active",
@@ -326,27 +294,21 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Phantom Black",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FDac8XZmoVWUhAMKAyJsZ%2F795df427-55c4-4562-975a-37d8c0c6481e?alt=media&token=315289e3-4a4c-4792-87be-e9cd6f94d9bc"
-                        ]
+                        images: []
                     },
                     {
                         value: "Phantom Silver",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FDac8XZmoVWUhAMKAyJsZ%2F795df427-55c4-4562-975a-37d8c0c6481e?alt=media&token=315289e3-4a4c-4792-87be-e9cd6f94d9bc"
-                        ]
+                        images: []
                     },
                     {
                         value: "Phantom Green",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FDac8XZmoVWUhAMKAyJsZ%2F795df427-55c4-4562-975a-37d8c0c6481e?alt=media&token=315289e3-4a4c-4792-87be-e9cd6f94d9bc"
-                        ]
+                        images: []
                     }
                 ]
             }
         ],
         images: [
-            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FDac8XZmoVWUhAMKAyJsZ%2F795df427-55c4-4562-975a-37d8c0c6481e?alt=media&token=315289e3-4a4c-4792-87be-e9cd6f94d9bc"
+            
         ],
         rating: { average: 4.9, count: 45 },
         status: "active",
@@ -378,21 +340,17 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Gradien Purple",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FImzgCBvpz4SbKWSwuyaC%2F23dc0f37-7db2-4769-b330-72932f465756?alt=media&token=06a3c507-eccd-41f4-b783-f80f60e364fe"
-                        ]
+                        images: []
                     },
                     {
                         value: "Hitam",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FImzgCBvpz4SbKWSwuyaC%2F23dc0f37-7db2-4769-b330-72932f465756?alt=media&token=06a3c507-eccd-41f4-b783-f80f60e364fe"
-                        ]
+                        images: []
                     }
                 ]
             }
         ],
         images: [
-            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FImzgCBvpz4SbKWSwuyaC%2F23dc0f37-7db2-4769-b330-72932f465756?alt=media&token=06a3c507-eccd-41f4-b783-f80f60e364fe"
+            
         ],
         rating: { average: 4.2, count: 112 },
         status: "active",
@@ -424,21 +382,17 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Hitam",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FLwCez9ngAfd8hiAPMWGO%2Fae67ebb3-db42-473e-98dc-7fca2806a90e?alt=media&token=f3293e9a-22e1-403d-a3bb-c043db620f1a"
-                        ]
+                        images: []
                     },
                     {
                         value: "Biru",
-                        images: [
-                            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FLwCez9ngAfd8hiAPMWGO%2Fae67ebb3-db42-473e-98dc-7fca2806a90e?alt=media&token=f3293e9a-22e1-403d-a3bb-c043db620f1a"
-                        ]
+                        images: []
                     }
                 ]
             }
         ],
         images: [
-            "https://firebasestorage.googleapis.com/v0/b/chatbot-rag-development.firebasestorage.app/o/products%2FLwCez9ngAfd8hiAPMWGO%2Fae67ebb3-db42-473e-98dc-7fca2806a90e?alt=media&token=f3293e9a-22e1-403d-a3bb-c043db620f1a"
+            
         ],
         rating: { average: 4.0, count: 203 },
         status: "active",
