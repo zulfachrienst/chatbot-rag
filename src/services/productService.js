@@ -2,7 +2,7 @@ const { db } = require('../config/firebase');
 const embeddingService = require('./embeddingService');
 const vectorService = require('./vectorService');
 const logger = require('../utils/logger');
-const { deleteFileByUrl } = require('../utils/firebaseStorage');
+const { deleteFileByUrl, deleteAllFilesByPrefix } = require('../utils/firebaseStorage');
 
 
 // Helper untuk slugify nama produk
@@ -82,13 +82,6 @@ function extractAllImageUrls(product) {
         }
     }
     return urls;
-}
-
-// Helper untuk menghapus semua file di folder produk (prefix)
-async function deleteAllFilesByPrefix(prefix) {
-    const bucket = getStorage().bucket();
-    const [files] = await bucket.getFiles({ prefix });
-    await Promise.all(files.map(file => file.delete()));
 }
 
 class ProductService {
