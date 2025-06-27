@@ -2,6 +2,7 @@ const { db } = require('../config/firebase');
 const embeddingService = require('./embeddingService');
 const vectorService = require('./vectorService');
 const logger = require('../utils/logger');
+const { getStorage } = require('firebase-admin/storage'); // pastikan sudah diinisialisasi di config/firebase.js
 
 // Helper untuk slugify nama produk
 function slugify(text) {
@@ -62,6 +63,13 @@ function normalizeVariants(variants) {
         }
         return { ...variant, options: [] };
     });
+}
+
+// Helper untuk menghapus semua file di folder produk (prefix)
+async function deleteAllFilesByPrefix(prefix) {
+    const bucket = getStorage().bucket();
+    const [files] = await bucket.getFiles({ prefix });
+    await Promise.all(files.map(file => file.delete()));
 }
 
 class ProductService {
@@ -161,7 +169,7 @@ class ProductService {
     }
 
     /**
-     * Delete product by ID from Firestore and Pinecone
+     * Delete product by ID from Firestore, Pinecone, and Firebase Storage (all files in product folder)
      * @param {string} productId
      */
     async deleteProduct(productId) {
@@ -183,12 +191,25 @@ class ProductService {
                 return null;
             }
 
+            // Hapus semua file di folder produk (misal: products/{productId}/)
+            try {
+                await deleteAllFilesByPrefix(`products/${productId}/`);
+            } catch (e) {
+                await logger.warn('Failed to delete product folder from storage', {
+                    source: 'Product Service',
+                    request_id,
+                    endpoint,
+                    message: e.message,
+                    details: { productId }
+                });
+            }
+
             await docRef.delete();
 
             // Hapus dari Pinecone juga
             await vectorService.deleteVectors([productId]);
 
-            await logger.info('Product deleted successfully', {
+            await logger.info('Product and images deleted successfully', {
                 source: 'Product Service',
                 request_id,
                 endpoint,
