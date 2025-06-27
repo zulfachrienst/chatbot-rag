@@ -11,6 +11,28 @@ const { uploadImageBuffer } = require('../utils/firebaseStorage');
 
 const router = express.Router();
 
+// Konfigurasi limit gambar
+const MAX_MAIN_IMAGES = 8;         // Maksimal gambar utama produk
+const MAX_VARIANT_IMAGES = 3;      // Maksimal gambar per varian option
+const MAX_TOTAL_IMAGES = 40;       // (Opsional) Limit total gambar per produk
+
+// Helper untuk hitung total gambar (utama + semua varian)
+function countTotalImages(images, variants) {
+    let total = Array.isArray(images) ? images.length : 0;
+    if (Array.isArray(variants)) {
+        for (const variant of variants) {
+            if (Array.isArray(variant.options)) {
+                for (const option of variant.options) {
+                    if (Array.isArray(option.images)) {
+                        total += option.images.length;
+                    }
+                }
+            }
+        }
+    }
+    return total;
+}
+
 // Test route
 router.get('/test', (req, res) => {
     res.json({
@@ -148,6 +170,39 @@ router.post('/products', authenticate, authorizeAdmin, upload.any(), async (req,
     try {
         const productData = JSON.parse(req.body.data);
 
+        // --- Validasi gambar utama ---
+        if (productData.images && productData.images.length > MAX_MAIN_IMAGES) {
+            return res.status(400).json({
+                error: `Maksimal ${MAX_MAIN_IMAGES} gambar utama diperbolehkan.`,
+                request_id
+            });
+        }
+
+        // --- Validasi gambar per varian ---
+        if (productData.variants) {
+            for (const [vIdx, variant] of productData.variants.entries()) {
+                if (variant.options) {
+                    for (const [oIdx, option] of variant.options.entries()) {
+                        if (option.images && option.images.length > MAX_VARIANT_IMAGES) {
+                            return res.status(400).json({
+                                error: `Maksimal ${MAX_VARIANT_IMAGES} gambar untuk varian "${variant.name}" opsi "${option.value}".`,
+                                request_id
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- (Opsional) Validasi total gambar ---
+        const totalImages = countTotalImages(productData.images, productData.variants);
+        if (totalImages > MAX_TOTAL_IMAGES) {
+            return res.status(400).json({
+                error: `Total gambar produk (utama + semua varian) tidak boleh lebih dari ${MAX_TOTAL_IMAGES}.`,
+                request_id
+            });
+        }
+
         // Simpan produk dulu untuk dapatkan ID
         const product = await productService.addProduct({ ...productData, images: [] });
 
@@ -230,6 +285,7 @@ router.post('/products', authenticate, authorizeAdmin, upload.any(), async (req,
     }
 });
 
+// Update product endpoint
 router.put('/products/:id', authenticate, authorizeAdmin, upload.any(), async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/products/:id';
@@ -237,6 +293,39 @@ router.put('/products/:id', authenticate, authorizeAdmin, upload.any(), async (r
     try {
         const productId = req.params.id;
         const updateData = JSON.parse(req.body.data);
+
+        // --- Validasi gambar utama ---
+        if (updateData.images && updateData.images.length > MAX_MAIN_IMAGES) {
+            return res.status(400).json({
+                error: `Maksimal ${MAX_MAIN_IMAGES} gambar utama diperbolehkan.`,
+                request_id
+            });
+        }
+
+        // --- Validasi gambar per varian ---
+        if (updateData.variants) {
+            for (const [vIdx, variant] of updateData.variants.entries()) {
+                if (variant.options) {
+                    for (const [oIdx, option] of variant.options.entries()) {
+                        if (option.images && option.images.length > MAX_VARIANT_IMAGES) {
+                            return res.status(400).json({
+                                error: `Maksimal ${MAX_VARIANT_IMAGES} gambar untuk varian "${variant.name}" opsi "${option.value}".`,
+                                request_id
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- (Opsional) Validasi total gambar ---
+        const totalImages = countTotalImages(updateData.images, updateData.variants);
+        if (totalImages > MAX_TOTAL_IMAGES) {
+            return res.status(400).json({
+                error: `Total gambar produk (utama + semua varian) tidak boleh lebih dari ${MAX_TOTAL_IMAGES}.`,
+                request_id
+            });
+        }
 
         // --- Handle images utama ---
         let imageUrls = [];
@@ -678,7 +767,7 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
     try {
         // Ambil parameter dari request body - sekarang support olderThanHours
         const { olderThanHours = 168, level = "ALL" } = req.body; // 168 hours = 7 days default
-        
+
         // Hitung cutoff date berdasarkan olderThanHours
         const cutoffDate = new Date();
         cutoffDate.setHours(cutoffDate.getHours() - olderThanHours);
@@ -696,7 +785,7 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
 
         // Query systemLogs dengan timestamp filter
         let query = db.collection('systemLogs').where('timestamp', '<', cutoffTimestamp);
-        
+
         // Filter berdasarkan level jika level bukan ALL
         if (level && level !== 'ALL') {
             query = query.where('level', '==', level);
@@ -705,7 +794,7 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
         // Batch delete dengan optimasi
         const batchSize = 500;
         let totalDeleted = 0;
-        
+
         while (true) {
             const snapshot = await query.limit(batchSize).get();
             if (snapshot.empty) break;
@@ -718,7 +807,7 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
             // Break jika jumlah dokumen kurang dari batchSize
             if (snapshot.size < batchSize) break;
         }
-        
+
         deletedCount += totalDeleted;
 
         // Format time text untuk response yang lebih user-friendly
@@ -783,7 +872,7 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
                 requestBody: req.body
             }
         });
-        
+
         res.status(500).json({
             success: false,
             error: 'Internal server error',
