@@ -141,27 +141,64 @@ router.get('/products', async (req, res) => {
 });
 
 // Add product endpoint
-router.post('/products', authenticate, authorizeAdmin, upload.array('images', 10), async (req, res) => {
+router.post('/products', authenticate, authorizeAdmin, upload.any(), async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/products';
     const request_id = logger.generateRequestId();
     try {
-        const productData = JSON.parse(req.body.data); // data produk dikirim sebagai JSON string di field 'data'
+        const productData = JSON.parse(req.body.data);
 
         // Simpan produk dulu untuk dapatkan ID
         const product = await productService.addProduct({ ...productData, images: [] });
 
-        // Upload gambar jika ada
+        // --- Handle images utama ---
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
+            // Ambil hanya file dengan fieldname 'images'
+            const mainImages = req.files.filter(f => f.fieldname === 'images');
             imageUrls = await Promise.all(
-                req.files.map(file =>
+                mainImages.map(file =>
                     uploadImageBuffer(file.buffer, file.mimetype, product.id)
                 )
             );
-            // Update produk dengan array imageUrls
-            await productService.updateProduct(product.id, { images: imageUrls });
         }
+
+        // --- Handle images per variant option ---
+        // key: 'vIdx_oIdx', value: [url, ...]
+        const variantOptionImageUrls = {};
+        for (const file of req.files) {
+            const match = file.fieldname.match(/^variant_(\d+)_(\d+)_images$/);
+            if (match) {
+                const vIdx = Number(match[1]);
+                const oIdx = Number(match[2]);
+                const url = await uploadImageBuffer(file.buffer, file.mimetype, product.id);
+                const key = `${vIdx}_${oIdx}`;
+                if (!variantOptionImageUrls[key]) variantOptionImageUrls[key] = [];
+                variantOptionImageUrls[key].push(url);
+            }
+        }
+        // Inject ke productData.variants[vIdx].options[oIdx].images
+        if (productData.variants) {
+            Object.entries(variantOptionImageUrls).forEach(([key, urls]) => {
+                const [vIdx, oIdx] = key.split('_').map(Number);
+                if (
+                    productData.variants[vIdx] &&
+                    productData.variants[vIdx].options &&
+                    productData.variants[vIdx].options[oIdx]
+                ) {
+                    if (!Array.isArray(productData.variants[vIdx].options[oIdx].images)) {
+                        productData.variants[vIdx].options[oIdx].images = [];
+                    }
+                    productData.variants[vIdx].options[oIdx].images.push(...urls);
+                }
+            });
+        }
+
+        // Update produk dengan images utama dan variant images
+        await productService.updateProduct(product.id, {
+            images: imageUrls,
+            variants: productData.variants
+        });
 
         await logger.info('Product added successfully with images', {
             source: 'Chat Routes',
@@ -173,7 +210,7 @@ router.post('/products', authenticate, authorizeAdmin, upload.array('images', 10
 
         res.json({
             success: true,
-            data: { ...product, images: imageUrls },
+            data: { ...product, images: imageUrls, variants: productData.variants },
             request_id
         });
     } catch (error) {
@@ -193,26 +230,56 @@ router.post('/products', authenticate, authorizeAdmin, upload.array('images', 10
     }
 });
 
-// Edit product endpoint
-router.put('/products/:id', authenticate, authorizeAdmin, upload.array('images', 10), async (req, res) => {
+router.put('/products/:id', authenticate, authorizeAdmin, upload.any(), async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/products/:id';
     const request_id = logger.generateRequestId();
     try {
         const productId = req.params.id;
-        const updateData = JSON.parse(req.body.data); // data produk dikirim sebagai JSON string di field 'data'
+        const updateData = JSON.parse(req.body.data);
 
-        // Upload gambar baru jika ada
+        // --- Handle images utama ---
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
+            const mainImages = req.files.filter(f => f.fieldname === 'images');
             imageUrls = await Promise.all(
-                req.files.map(file =>
+                mainImages.map(file =>
                     uploadImageBuffer(file.buffer, file.mimetype, productId)
                 )
             );
             // Gabungkan dengan gambar lama jika ingin (atau replace, sesuai kebutuhan)
             const product = await productService.getProduct(productId);
             updateData.images = [...(product.images || []), ...imageUrls];
+        }
+
+        // --- Handle images per variant option ---
+        const variantOptionImageUrls = {};
+        for (const file of req.files) {
+            const match = file.fieldname.match(/^variant_(\d+)_(\d+)_images$/);
+            if (match) {
+                const vIdx = Number(match[1]);
+                const oIdx = Number(match[2]);
+                const url = await uploadImageBuffer(file.buffer, file.mimetype, productId);
+                const key = `${vIdx}_${oIdx}`;
+                if (!variantOptionImageUrls[key]) variantOptionImageUrls[key] = [];
+                variantOptionImageUrls[key].push(url);
+            }
+        }
+        // Inject ke updateData.variants[vIdx].options[oIdx].images
+        if (updateData.variants) {
+            Object.entries(variantOptionImageUrls).forEach(([key, urls]) => {
+                const [vIdx, oIdx] = key.split('_').map(Number);
+                if (
+                    updateData.variants[vIdx] &&
+                    updateData.variants[vIdx].options &&
+                    updateData.variants[vIdx].options[oIdx]
+                ) {
+                    if (!Array.isArray(updateData.variants[vIdx].options[oIdx].images)) {
+                        updateData.variants[vIdx].options[oIdx].images = [];
+                    }
+                    updateData.variants[vIdx].options[oIdx].images.push(...urls);
+                }
+            });
         }
 
         const updated = await productService.updateProduct(productId, updateData);

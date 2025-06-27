@@ -36,6 +36,34 @@ const defaultProduct = {
     updatedAt: null
 };
 
+// Helper untuk normalisasi struktur variants agar setiap option adalah object { value, images }
+function normalizeVariants(variants) {
+    if (!Array.isArray(variants)) return [];
+    return variants.map(variant => {
+        // Jika option sudah object { value, images }, biarkan
+        if (Array.isArray(variant.options) && typeof variant.options[0] === 'object') {
+            return {
+                ...variant,
+                options: variant.options.map(opt => ({
+                    value: typeof opt.value === 'string' ? opt.value : (typeof opt === 'string' ? opt : ''),
+                    images: Array.isArray(opt.images) ? opt.images : []
+                }))
+            };
+        }
+        // Jika option masih array string, ubah ke object
+        if (Array.isArray(variant.options)) {
+            return {
+                ...variant,
+                options: variant.options.map(opt => ({
+                    value: typeof opt === 'string' ? opt : '',
+                    images: []
+                }))
+            };
+        }
+        return { ...variant, options: [] };
+    });
+}
+
 class ProductService {
     constructor() {
         this.collection = db.collection('products');
@@ -81,9 +109,10 @@ class ProductService {
             if (!Array.isArray(mergedData.images)) mergedData.images = [];
             if (!Array.isArray(mergedData.features)) mergedData.features = [];
             if (!Array.isArray(mergedData.specs)) mergedData.specs = [];
-            if (!Array.isArray(mergedData.variants)) mergedData.variants = [];
             if (typeof mergedData.discount !== 'object') mergedData.discount = { percent: 0, priceAfterDiscount: mergedData.price };
             if (typeof mergedData.rating !== 'object') mergedData.rating = { average: 0, count: 0 };
+            // Normalisasi variants agar setiap option object { value, images }
+            mergedData.variants = normalizeVariants(mergedData.variants);
 
             await docRef.update(mergedData);
 
@@ -205,9 +234,10 @@ class ProductService {
             if (!Array.isArray(mergedData.images)) mergedData.images = [];
             if (!Array.isArray(mergedData.features)) mergedData.features = [];
             if (!Array.isArray(mergedData.specs)) mergedData.specs = [];
-            if (!Array.isArray(mergedData.variants)) mergedData.variants = [];
             if (typeof mergedData.discount !== 'object') mergedData.discount = { percent: 0, priceAfterDiscount: mergedData.price };
             if (typeof mergedData.rating !== 'object') mergedData.rating = { average: 0, count: 0 };
+            // Normalisasi variants agar setiap option object { value, images }
+            mergedData.variants = normalizeVariants(mergedData.variants);
 
             // Add to Firestore
             const docRef = await this.collection.add(mergedData);

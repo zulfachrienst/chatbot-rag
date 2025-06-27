@@ -46,7 +46,7 @@ Apakah user ingin melihat semua produk yang tersedia? Jawab hanya "yes" atau "no
                     productContext = relatedProducts.map(product => {
                         let imagesText = '';
                         if (product.images && product.images.length > 0) {
-                            imagesText = `\nGambar: ${product.images.join(', ')}`;
+                            imagesText = `\nGambar utama: ${product.images.join(', ')}`;
                         }
                         // Future-proof: tampilkan fitur, spesifikasi, diskon, rating, dsb jika ada
                         let featuresText = '';
@@ -65,9 +65,23 @@ Apakah user ingin melihat semua produk yang tersedia? Jawab hanya "yes" atau "no
                         if (product.rating && product.rating.count > 0) {
                             ratingText = `\nRating: ${product.rating.average} (${product.rating.count} ulasan)`;
                         }
+                        // --- VARIANTS: tampilkan gambar per option jika ada ---
                         let variantsText = '';
                         if (product.variants && product.variants.length > 0) {
-                            variantsText = `\nVarian: ${product.variants.map(v => `${v.name}: ${v.options.join(', ')}`).join('; ')}`;
+                            variantsText = `\nVarian: ` + product.variants.map((v, vIdx) => {
+                                // Jika option adalah array of object { value, images }
+                                if (v.options && typeof v.options[0] === 'object') {
+                                    return `${v.name}: ` + v.options.map((opt, oIdx) => {
+                                        let optText = opt.value || opt;
+                                        if (opt.images && opt.images.length > 0) {
+                                            optText += ` [gambar: ${opt.images.join(', ')}]`;
+                                        }
+                                        return optText;
+                                    }).join(', ');
+                                }
+                                // Jika option masih array string
+                                return `${v.name}: ${v.options.join(', ')}`;
+                            }).join('; ');
                         }
                         let stockText = '';
                         if (typeof product.stock === 'number') {
@@ -97,7 +111,8 @@ ${productContext || '[No relevant products found in the database]'}
 
 Instructions:
 - Always respond in the same language the user used (English or Bahasa Indonesia).
-- If a product has image URLs, you may include them in your reply if the user asks for images or photos.
+- If a product has image URLs (including images per variant/option), you may include them in your reply if the user asks for images, photos, or a specific variant/option.
+- If the user requests a specific variant or option (e.g. "warna biru", "RAM 8GB", "128GB", dsb), and that variant/option has its own image(s), prioritize showing the image(s) for that option.
 - If the user mixes a few English words into an otherwise Bahasa Indonesia message, **keep using Bahasa Indonesia** as the primary language in your response.
 - If user requests all products, show the list clearly and concisely.
 - If relevant products are available, suggest the best option(s) clearly, highlighting key features and price.
