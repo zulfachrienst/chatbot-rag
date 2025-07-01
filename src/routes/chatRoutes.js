@@ -167,117 +167,198 @@ router.post('/products', authenticate, authorizeAdmin, upload.any(), async (req,
     const startTime = Date.now();
     const endpoint = '/api/products';
     const request_id = logger.generateRequestId();
+
     try {
+        console.log('=== ADD PRODUCT REQUEST ===');
+        console.log('Files received:', req.files?.length || 0);
+        console.log('Body data:', req.body.data ? 'Present' : 'Missing');
+
+        if (!req.body.data) {
+            return res.status(400).json({
+                success: false,
+                error: 'Product data is required',
+                request_id
+            });
+        }
+
         const productData = JSON.parse(req.body.data);
-
-        // --- Validasi gambar utama ---
-        if (productData.images && productData.images.length > MAX_MAIN_IMAGES) {
-            return res.status(400).json({
-                error: `Maksimal ${MAX_MAIN_IMAGES} gambar utama diperbolehkan.`,
-                request_id
-            });
-        }
-
-        // --- Validasi gambar per varian ---
-        if (productData.variants) {
-            for (const [vIdx, variant] of productData.variants.entries()) {
-                if (variant.options) {
-                    for (const [oIdx, option] of variant.options.entries()) {
-                        if (option.images && option.images.length > MAX_VARIANT_IMAGES) {
-                            return res.status(400).json({
-                                error: `Maksimal ${MAX_VARIANT_IMAGES} gambar untuk varian "${variant.name}" opsi "${option.value}".`,
-                                request_id
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- (Opsional) Validasi total gambar ---
-        const totalImages = countTotalImages(productData.images, productData.variants);
-        if (totalImages > MAX_TOTAL_IMAGES) {
-            return res.status(400).json({
-                error: `Total gambar produk (utama + semua varian) tidak boleh lebih dari ${MAX_TOTAL_IMAGES}.`,
-                request_id
-            });
-        }
-
-        // Simpan produk dulu untuk dapatkan ID
-        const product = await productService.addProduct({ ...productData, images: [] });
-
-        // --- Handle images utama ---
-        let imageUrls = [];
-        if (req.files && req.files.length > 0) {
-            // Ambil hanya file dengan fieldname 'images'
-            const mainImages = req.files.filter(f => f.fieldname === 'images');
-            imageUrls = await Promise.all(
-                mainImages.map(file =>
-                    uploadImageBuffer(file.buffer, file.mimetype, product.id)
-                )
-            );
-        }
-
-        // --- Handle images per variant option ---
-        // key: 'vIdx_oIdx', value: [url, ...]
-        const variantOptionImageUrls = {};
-        for (const file of req.files) {
-            const match = file.fieldname.match(/^variant_(\d+)_(\d+)_images$/);
-            if (match) {
-                const vIdx = Number(match[1]);
-                const oIdx = Number(match[2]);
-                const url = await uploadImageBuffer(file.buffer, file.mimetype, product.id);
-                const key = `${vIdx}_${oIdx}`;
-                if (!variantOptionImageUrls[key]) variantOptionImageUrls[key] = [];
-                variantOptionImageUrls[key].push(url);
-            }
-        }
-        // Inject ke productData.variants[vIdx].options[oIdx].images
-        if (productData.variants) {
-            Object.entries(variantOptionImageUrls).forEach(([key, urls]) => {
-                const [vIdx, oIdx] = key.split('_').map(Number);
-                if (
-                    productData.variants[vIdx] &&
-                    productData.variants[vIdx].options &&
-                    productData.variants[vIdx].options[oIdx]
-                ) {
-                    if (!Array.isArray(productData.variants[vIdx].options[oIdx].images)) {
-                        productData.variants[vIdx].options[oIdx].images = [];
-                    }
-                    productData.variants[vIdx].options[oIdx].images.push(...urls);
-                }
-            });
-        }
-
-        // Update produk dengan images utama dan variant images
-        await productService.updateProduct(product.id, {
-            images: imageUrls,
-            variants: productData.variants
+        console.log('Product data parsed:', {
+            name: productData.name,
+            variants: productData.variants?.length || 0
         });
 
-        await logger.info('Product added successfully with images', {
-            source: 'Chat Routes',
+        // Validasi data produk
+        if (!productData.name || !productData.description || !productData.brand) {
+            return res.status(400).json({
+                success: false,
+                error: 'Name, description, and brand are required',
+                request_id
+            });
+        }
+
+        // Validasi total gambar
+        const totalFiles = req.files?.length || 0;
+        if (totalFiles > MAX_TOTAL_IMAGES) {
+            return res.status(400).json({
+                success: false,
+                error: `Maximum ${MAX_TOTAL_IMAGES} images allowed in total`,
+                request_id
+            });
+        }
+
+        // Validasi struktur variants
+        if (productData.variants && !Array.isArray(productData.variants)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Variants must be an array',
+                request_id
+            });
+        }
+
+        // Buat produk dulu tanpa gambar
+        const product = await productService.addProduct({
+            ...productData,
+            images: [],
+            variants: productData.variants || []
+        });
+
+        console.log('Product created with ID:', product.id);
+
+        // Upload gambar utama
+        const mainImages = req.files?.filter(f => f.fieldname === 'images') || [];
+        console.log('Main images to upload:', mainImages.length);
+
+        if (mainImages.length > MAX_MAIN_IMAGES) {
+            return res.status(400).json({
+                success: false,
+                error: `Maximum ${MAX_MAIN_IMAGES} main images allowed`,
+                request_id
+            });
+        }
+
+        const imageUrls = [];
+        for (const file of mainImages) {
+            try {
+                const url = await uploadImageBuffer(file.buffer, file.mimetype, product.id);
+                imageUrls.push(url);
+                console.log('Main image uploaded:', url);
+            } catch (uploadError) {
+                console.error('Error uploading main image:', uploadError);
+            }
+        }
+
+        // PERBAIKAN: Handle variant images dengan format frontend
+        const variantImageMap = {};
+
+        console.log('=== PROCESSING VARIANT IMAGES ===');
+        for (const file of req.files || []) {
+            console.log('Processing file:', file.fieldname);
+
+            // REGEX PATTERN YANG DIPERBAIKI: variant_{vIdx}_{oIdx}_images
+            const match = file.fieldname.match(/^variant_(\d+)_(\d+)_images$/);
+            if (match) {
+                const vIdx = parseInt(match[1]);
+                const oIdx = parseInt(match[2]);
+
+                console.log(`Found variant image: variant_${vIdx}_${oIdx}_images`);
+
+                try {
+                    const url = await uploadImageBuffer(file.buffer, file.mimetype, product.id);
+
+                    // Buat struktur nested untuk variant dan option
+                    if (!variantImageMap[vIdx]) {
+                        variantImageMap[vIdx] = {};
+                    }
+                    if (!variantImageMap[vIdx][oIdx]) {
+                        variantImageMap[vIdx][oIdx] = [];
+                    }
+
+                    variantImageMap[vIdx][oIdx].push(url);
+                    console.log(`✅ BERHASIL UPLOAD GAMBAR VARIANT: variant_${vIdx}_${oIdx}_images -> ${url}`);
+
+                } catch (uploadError) {
+                    console.error(`❌ Error uploading variant image variant_${vIdx}_${oIdx}_images:`, uploadError);
+                }
+            } else if (file.fieldname !== 'images') {
+                console.log(`⚠️ TIDAK DITEMUKAN DATA VARIANT GAMBAR untuk fieldname: ${file.fieldname}`);
+            }
+        }
+
+        // PERBAIKAN: Inject gambar ke setiap option dalam variant
+        console.log('=== INJECTING IMAGES TO VARIANTS ===');
+        if (productData.variants && Array.isArray(productData.variants)) {
+            productData.variants.forEach((variant, vIdx) => {
+                console.log(`Processing variant ${vIdx}:`, variant.name);
+
+                if (Array.isArray(variant.options)) {
+                    variant.options.forEach((option, oIdx) => {
+                        console.log(`  Processing option ${oIdx}:`, option.value);
+
+                        // Inject gambar ke option yang sesuai
+                        if (variantImageMap[vIdx] && variantImageMap[vIdx][oIdx]) {
+                            const existingImages = option.images || [];
+                            const newImages = variantImageMap[vIdx][oIdx];
+                            option.images = [...existingImages, ...newImages];
+
+                            console.log(`    ✅ Injected ${newImages.length} images to option ${option.value}`);
+                            console.log(`    Total images for this option: ${option.images.length}`);
+                        } else {
+                            console.log(`    ⚠️ No images found for variant ${vIdx} option ${oIdx}`);
+                        }
+                    });
+                } else {
+                    console.log(`  ⚠️ Variant ${vIdx} has no options array`);
+                }
+            });
+        }
+
+        // Update produk dengan gambar dan variants yang sudah diproses
+        const updatedProduct = await productService.updateProduct(product.id, {
+            images: imageUrls,
+            variants: productData.variants || []
+        });
+
+        console.log('=== FINAL RESULT ===');
+        console.log('Main images:', imageUrls.length);
+        console.log('Variants processed:', productData.variants?.length || 0);
+        console.log('Variant image map:', Object.keys(variantImageMap).length, 'variants');
+
+        await logger.info('Add product success', {
+            source: 'Product Routes',
             request_id,
             endpoint,
             response_time: Date.now() - startTime,
-            details: { productId: product.id, imageCount: imageUrls.length }
+            product_id: product.id,
+            main_images: imageUrls.length,
+            variant_images: Object.keys(variantImageMap).length
         });
 
         res.json({
             success: true,
-            data: { ...product, images: imageUrls, variants: productData.variants },
+            data: {
+                ...updatedProduct,
+                images: imageUrls,
+                variants: productData.variants || []
+            },
             request_id
         });
+
     } catch (error) {
+        console.error('=== ADD PRODUCT ERROR ===');
+        console.error('Error:', error.message);
+        console.error('Stack:', error.stack);
+
         await logger.error('Add product error', {
-            source: 'Chat Routes',
+            source: 'Product Routes',
             request_id,
             endpoint,
             response_time: Date.now() - startTime,
             message: error.message,
             details: error.stack || error
         });
+
         res.status(500).json({
+            success: false,
             error: 'Internal server error',
             message: error.message,
             request_id
@@ -285,126 +366,198 @@ router.post('/products', authenticate, authorizeAdmin, upload.any(), async (req,
     }
 });
 
-// Update product endpoint
+// PUT /api/products/:id - Update produk
 router.put('/products/:id', authenticate, authorizeAdmin, upload.any(), async (req, res) => {
     const startTime = Date.now();
     const endpoint = '/api/products/:id';
     const request_id = logger.generateRequestId();
+
     try {
         const productId = req.params.id;
-        const updateData = JSON.parse(req.body.data);
 
-        // --- Validasi gambar utama ---
-        if (updateData.images && updateData.images.length > MAX_MAIN_IMAGES) {
+        console.log('=== UPDATE PRODUCT REQUEST ===');
+        console.log('Product ID:', productId);
+        console.log('Files received:', req.files?.length || 0);
+        console.log('Body data:', req.body.data ? 'Present' : 'Missing');
+
+        if (!req.body.data) {
             return res.status(400).json({
-                error: `Maksimal ${MAX_MAIN_IMAGES} gambar utama diperbolehkan.`,
+                success: false,
+                error: 'Product data is required',
                 request_id
             });
         }
 
-        // --- Validasi gambar per varian ---
-        if (updateData.variants) {
-            for (const [vIdx, variant] of updateData.variants.entries()) {
-                if (variant.options) {
-                    for (const [oIdx, option] of variant.options.entries()) {
-                        if (option.images && option.images.length > MAX_VARIANT_IMAGES) {
-                            return res.status(400).json({
-                                error: `Maksimal ${MAX_VARIANT_IMAGES} gambar untuk varian "${variant.name}" opsi "${option.value}".`,
-                                request_id
-                            });
-                        }
-                    }
-                }
+        const updateData = JSON.parse(req.body.data);
+        console.log('Update data parsed:', {
+            name: updateData.name,
+            variants: updateData.variants?.length || 0
+        });
+
+        // Validasi struktur variants
+        if (updateData.variants && !Array.isArray(updateData.variants)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Variants must be an array',
+                request_id
+            });
+        }
+
+        // Ambil produk yang ada
+        const existingProduct = await productService.getProduct(productId);
+        if (!existingProduct) {
+            return res.status(404).json({
+                success: false,
+                error: 'Product not found',
+                request_id
+            });
+        }
+
+        // Upload gambar utama baru
+        const mainImages = req.files?.filter(f => f.fieldname === 'images') || [];
+        console.log('New main images to upload:', mainImages.length);
+
+        const newImageUrls = [];
+        for (const file of mainImages) {
+            try {
+                const url = await uploadImageBuffer(file.buffer, file.mimetype, productId);
+                newImageUrls.push(url);
+                console.log('New main image uploaded:', url);
+            } catch (uploadError) {
+                console.error('Error uploading main image:', uploadError);
             }
         }
 
-        // --- (Opsional) Validasi total gambar ---
-        const totalImages = countTotalImages(updateData.images, updateData.variants);
-        if (totalImages > MAX_TOTAL_IMAGES) {
+        // Gabungkan gambar lama dengan gambar baru
+        const existingImages = updateData.images || existingProduct.images || [];
+        const allMainImages = [...existingImages, ...newImageUrls];
+
+        if (allMainImages.length > MAX_MAIN_IMAGES) {
             return res.status(400).json({
-                error: `Total gambar produk (utama + semua varian) tidak boleh lebih dari ${MAX_TOTAL_IMAGES}.`,
+                success: false,
+                error: `Maximum ${MAX_MAIN_IMAGES} main images allowed`,
                 request_id
             });
         }
 
-        // --- Handle images utama ---
-        let imageUrls = [];
-        if (req.files && req.files.length > 0) {
-            const mainImages = req.files.filter(f => f.fieldname === 'images');
-            imageUrls = await Promise.all(
-                mainImages.map(file =>
-                    uploadImageBuffer(file.buffer, file.mimetype, productId)
-                )
-            );
-            // Gabungkan dengan gambar lama jika ingin (atau replace, sesuai kebutuhan)
-            const product = await productService.getProduct(productId);
-            updateData.images = [...(product.images || []), ...imageUrls];
-        }
+        // PERBAIKAN: Handle variant images dengan format frontend
+        const variantImageMap = {};
 
-        // --- Handle images per variant option ---
-        const variantOptionImageUrls = {};
-        for (const file of req.files) {
+        console.log('=== PROCESSING VARIANT IMAGES FOR UPDATE ===');
+        for (const file of req.files || []) {
+            console.log('Processing file:', file.fieldname);
+
+            // REGEX PATTERN YANG DIPERBAIKI: variant_{vIdx}_{oIdx}_images
             const match = file.fieldname.match(/^variant_(\d+)_(\d+)_images$/);
             if (match) {
-                const vIdx = Number(match[1]);
-                const oIdx = Number(match[2]);
-                const url = await uploadImageBuffer(file.buffer, file.mimetype, productId);
-                const key = `${vIdx}_${oIdx}`;
-                if (!variantOptionImageUrls[key]) variantOptionImageUrls[key] = [];
-                variantOptionImageUrls[key].push(url);
+                const vIdx = parseInt(match[1]);
+                const oIdx = parseInt(match[2]);
+
+                console.log(`Found variant image: variant_${vIdx}_${oIdx}_images`);
+
+                try {
+                    const url = await uploadImageBuffer(file.buffer, file.mimetype, productId);
+
+                    // Buat struktur nested untuk variant dan option
+                    if (!variantImageMap[vIdx]) {
+                        variantImageMap[vIdx] = {};
+                    }
+                    if (!variantImageMap[vIdx][oIdx]) {
+                        variantImageMap[vIdx][oIdx] = [];
+                    }
+
+                    variantImageMap[vIdx][oIdx].push(url);
+                    console.log(`✅ BERHASIL UPLOAD GAMBAR VARIANT: variant_${vIdx}_${oIdx}_images -> ${url}`);
+
+                } catch (uploadError) {
+                    console.error(`❌ Error uploading variant image variant_${vIdx}_${oIdx}_images:`, uploadError);
+                }
+            } else if (file.fieldname !== 'images') {
+                console.log(`⚠️ TIDAK DITEMUKAN DATA VARIANT GAMBAR untuk fieldname: ${file.fieldname}`);
             }
         }
-        // Inject ke updateData.variants[vIdx].options[oIdx].images
-        if (updateData.variants) {
-            Object.entries(variantOptionImageUrls).forEach(([key, urls]) => {
-                const [vIdx, oIdx] = key.split('_').map(Number);
-                if (
-                    updateData.variants[vIdx] &&
-                    updateData.variants[vIdx].options &&
-                    updateData.variants[vIdx].options[oIdx]
-                ) {
-                    if (!Array.isArray(updateData.variants[vIdx].options[oIdx].images)) {
-                        updateData.variants[vIdx].options[oIdx].images = [];
-                    }
-                    updateData.variants[vIdx].options[oIdx].images.push(...urls);
+
+        // PERBAIKAN: Inject gambar ke setiap option dalam variant
+        console.log('=== INJECTING IMAGES TO VARIANTS FOR UPDATE ===');
+        if (updateData.variants && Array.isArray(updateData.variants)) {
+            updateData.variants.forEach((variant, vIdx) => {
+                console.log(`Processing variant ${vIdx}:`, variant.name);
+
+                if (Array.isArray(variant.options)) {
+                    variant.options.forEach((option, oIdx) => {
+                        console.log(`  Processing option ${oIdx}:`, option.value);
+
+                        // Inject gambar baru ke option yang sesuai
+                        if (variantImageMap[vIdx] && variantImageMap[vIdx][oIdx]) {
+                            const existingImages = option.images || [];
+                            const newImages = variantImageMap[vIdx][oIdx];
+                            option.images = [...existingImages, ...newImages];
+
+                            console.log(`    ✅ Injected ${newImages.length} new images to option ${option.value}`);
+                            console.log(`    Total images for this option: ${option.images.length}`);
+                        } else {
+                            console.log(`    ⚠️ No new images found for variant ${vIdx} option ${oIdx}`);
+                        }
+                    });
+                } else {
+                    console.log(`  ⚠️ Variant ${vIdx} has no options array`);
                 }
             });
         }
 
-        const updated = await productService.updateProduct(productId, updateData);
-        if (!updated) {
-            await logger.warn('Product not found for update', {
-                source: 'Chat Routes',
-                request_id,
-                endpoint,
-                response_time: Date.now() - startTime,
-                message: 'Product not found',
-                details: { productId }
-            });
-            return res.status(404).json({ error: 'Product not found', request_id });
-        }
+        // Update produk
+        const finalUpdateData = {
+            ...updateData,
+            images: allMainImages,
+            variants: updateData.variants || []
+        };
 
-        await logger.info('Product updated successfully with images', {
-            source: 'Chat Routes',
+        const updatedProduct = await productService.updateProduct(productId, finalUpdateData);
+
+        console.log('=== UPDATE FINAL RESULT ===');
+        console.log('Total main images:', allMainImages.length);
+        console.log('Variants processed:', updateData.variants?.length || 0);
+        console.log('Variant image map:', Object.keys(variantImageMap).length, 'variants');
+
+        await logger.info('Update product success', {
+            source: 'Product Routes',
             request_id,
             endpoint,
             response_time: Date.now() - startTime,
-            details: { productId, imageCount: imageUrls.length }
+            product_id: productId,
+            main_images: allMainImages.length,
+            variant_images: Object.keys(variantImageMap).length
         });
 
-        res.json({ success: true, data: updated, request_id });
+        res.json({
+            success: true,
+            data: updatedProduct,
+            request_id
+        });
+
     } catch (error) {
+        console.error('=== UPDATE PRODUCT ERROR ===');
+        console.error('Error:', error.message);
+        console.error('Stack:', error.stack);
+
         await logger.error('Update product error', {
-            source: 'Chat Routes',
+            source: 'Product Routes',
             request_id,
             endpoint,
             response_time: Date.now() - startTime,
             message: error.message,
             details: error.stack || error
         });
-        res.status(500).json({ error: 'Internal server error', message: error.message, request_id });
+
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+            message: error.message,
+            request_id
+        });
     }
 });
+
 
 // Delete product endpoint
 router.delete('/products/:id', authenticate, authorizeAdmin, async (req, res) => {
@@ -877,6 +1030,52 @@ router.delete('/clear-logs', authenticate, authorizeAdmin, async (req, res) => {
             success: false,
             error: 'Internal server error',
             message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
+            request_id
+        });
+    }
+});
+
+router.get('/stats/popular-products', async (req, res) => {
+    const startTime = Date.now();
+    const endpoint = '/api/stats/popular-products';
+    const request_id = logger.generateRequestId();
+    try {
+        // Query Firestore collection 'productInquiries', order by 'count' descending
+        const snapshot = await db.collection('productInquiries')
+            .orderBy('count', 'desc')
+            .limit(20)
+            .get();
+
+        const products = [];
+        snapshot.forEach(doc => {
+            products.push({ id: doc.id, ...doc.data() });
+        });
+
+        await logger.info('Fetched popular products from productInquiries', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            details: { count: products.length }
+        });
+
+        res.json({
+            success: true,
+            data: products,
+            request_id
+        });
+    } catch (error) {
+        await logger.error('Get popular products error', {
+            source: 'Chat Routes',
+            request_id,
+            endpoint,
+            response_time: Date.now() - startTime,
+            message: error.message,
+            details: error.stack || error
+        });
+        res.status(500).json({
+            error: 'Internal server error',
+            message: error.message,
             request_id
         });
     }

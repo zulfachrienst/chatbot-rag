@@ -4,7 +4,6 @@ const vectorService = require('./vectorService');
 const logger = require('../utils/logger');
 const { deleteFileByUrl, deleteAllFilesByPrefix } = require('../utils/firebaseStorage');
 
-
 // Helper untuk slugify nama produk
 function slugify(text) {
     return text.toString().toLowerCase()
@@ -24,7 +23,8 @@ const defaultProduct = {
     tags: [],
     brand: '',
     price: 0,
-    discount: { percent: 0, priceAfterDiscount: 0 },
+    discount: 0, // persen diskon (misal: 10 untuk 10%)
+    priceAfterDiscount: 0, // harga setelah diskon
     stock: 0,
     features: [],
     specs: [],
@@ -38,27 +38,61 @@ const defaultProduct = {
     updatedAt: null
 };
 
-// Helper untuk normalisasi struktur variants agar setiap option adalah object { value, images }
+// Helper untuk normalisasi struktur variants agar setiap option adalah object { value, images, ... }
 function normalizeVariants(variants) {
     if (!Array.isArray(variants)) return [];
     return variants.map(variant => {
-        // Jika option sudah object { value, images }, biarkan
         if (Array.isArray(variant.options) && typeof variant.options[0] === 'object') {
             return {
                 ...variant,
-                options: variant.options.map(opt => ({
-                    value: typeof opt.value === 'string' ? opt.value : (typeof opt === 'string' ? opt : ''),
-                    images: Array.isArray(opt.images) ? opt.images : []
-                }))
+                options: variant.options.map(opt => {
+                    // Whitelist field yang pasti dipakai
+                    const obj = {
+                        value: typeof opt.value === 'string' ? opt.value : (typeof opt === 'string' ? opt : ''),
+                        images: Array.isArray(opt.images) ? opt.images : [],
+                        price: typeof opt.price === 'number' ? opt.price : undefined,
+                        discount: typeof opt.discount === 'number' ? opt.discount : undefined,
+                        priceAfterDiscount: typeof opt.priceAfterDiscount === 'number' ? opt.priceAfterDiscount : undefined,
+                        stock: typeof opt.stock === 'number' ? opt.stock : undefined,
+                        sku: typeof opt.sku === 'string' ? opt.sku : undefined,
+                        specs: Array.isArray(opt.specs) ? opt.specs : undefined,
+                        useDefault: (opt.useDefault && typeof opt.useDefault === 'object')
+                            ? Object.fromEntries(
+                                Object.entries(opt.useDefault)
+                                    .filter(([k, v]) => typeof v === 'boolean')
+                            )
+                            : undefined,
+                        features: Array.isArray(opt.features) ? opt.features : undefined,
+                        featuresText: typeof opt.featuresText === 'string' ? opt.featuresText : undefined,
+                    };
+                    // Ikutkan semua field lain yang tipenya valid (string, number, boolean, array, object)
+                    Object.entries(opt).forEach(([k, v]) => {
+                        if (!(k in obj) && v !== null && v !== undefined) {
+                            if (
+                                typeof v === 'string' ||
+                                typeof v === 'number' ||
+                                typeof v === 'boolean' ||
+                                Array.isArray(v) ||
+                                (typeof v === 'object' && v !== null)
+                            ) {
+                                obj[k] = v;
+                            }
+                        }
+                    });
+                    // Hapus field yang null/undefined agar Firestore tidak error
+                    Object.keys(obj).forEach(key => {
+                        if (obj[key] === null || obj[key] === undefined) delete obj[key];
+                    });
+                    return obj;
+                })
             };
         }
-        // Jika option masih array string, ubah ke object
         if (Array.isArray(variant.options)) {
             return {
                 ...variant,
                 options: variant.options.map(opt => ({
                     value: typeof opt === 'string' ? opt : '',
-                    images: []
+                    images: [],
                 }))
             };
         }
@@ -129,9 +163,10 @@ class ProductService {
             if (!Array.isArray(mergedData.images)) mergedData.images = [];
             if (!Array.isArray(mergedData.features)) mergedData.features = [];
             if (!Array.isArray(mergedData.specs)) mergedData.specs = [];
-            if (typeof mergedData.discount !== 'object') mergedData.discount = { percent: 0, priceAfterDiscount: mergedData.price };
+            if (!Array.isArray(mergedData.variants)) mergedData.variants = [];
+            if (typeof mergedData.discount !== 'number') mergedData.discount = 0;
+            if (typeof mergedData.priceAfterDiscount !== 'number') mergedData.priceAfterDiscount = mergedData.price || 0;
             if (typeof mergedData.rating !== 'object') mergedData.rating = { average: 0, count: 0 };
-            // Normalisasi variants agar setiap option object { value, images }
             mergedData.variants = normalizeVariants(mergedData.variants);
 
             // --- Hapus file gambar yang dihapus dari data (utama & variant) ---
@@ -273,9 +308,10 @@ class ProductService {
             if (!Array.isArray(mergedData.images)) mergedData.images = [];
             if (!Array.isArray(mergedData.features)) mergedData.features = [];
             if (!Array.isArray(mergedData.specs)) mergedData.specs = [];
-            if (typeof mergedData.discount !== 'object') mergedData.discount = { percent: 0, priceAfterDiscount: mergedData.price };
+            if (!Array.isArray(mergedData.variants)) mergedData.variants = [];
+            if (typeof mergedData.discount !== 'number') mergedData.discount = 0;
+            if (typeof mergedData.priceAfterDiscount !== 'number') mergedData.priceAfterDiscount = mergedData.price || 0;
             if (typeof mergedData.rating !== 'object') mergedData.rating = { average: 0, count: 0 };
-            // Normalisasi variants agar setiap option object { value, images }
             mergedData.variants = normalizeVariants(mergedData.variants);
 
             // Add to Firestore
@@ -441,6 +477,10 @@ class ProductService {
             });
             throw error;
         }
+    }
+
+    async getPopularProducts() {
+
     }
 }
 

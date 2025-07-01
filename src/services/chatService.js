@@ -1,7 +1,9 @@
 const groq = require('../config/groq');
+const { db } = require('../config/firebase');
 const productService = require('./productService');
 const logger = require('../utils/logger');
 const historyService = require('./historyService');
+const admin = require('firebase-admin');
 
 class ChatService {
     /**
@@ -99,7 +101,13 @@ Apakah user ingin melihat semua produk yang tersedia? Jawab hanya "yes" atau "no
                         if (product.isFeatured) {
                             isFeaturedText = `\nProduk Unggulan`;
                         }
-                        return `- ${product.name}: ${product.description} (Harga: ${product.price})${discountText}${featuresText}${specsText}${variantsText}${ratingText}${stockText}${warehouseText}${statusText}${isFeaturedText}${imagesText}`;
+                        let priceText = '';
+                        if (product.discount && product.discount.percent > 0 && product.discount.priceAfterDiscount) {
+                            priceText = `(Harga: ~${product.price}~ ${product.discount.priceAfterDiscount})`;
+                        } else {
+                            priceText = `(Harga: ${product.price})`;
+                        }
+                        return `- ${product.name}: ${product.description} ${priceText}${discountText}${featuresText}${specsText}${variantsText}${ratingText}${stockText}${warehouseText}${statusText}${isFeaturedText}${imagesText}`;
                     }).join('\n');
                 }
 
@@ -120,6 +128,7 @@ Instructions:
 - Avoid overly generic replies. Respond directly and helpfully.
 - Be brief but clear, helpful, and human-like.
 - Do not invent products or specs that aren't in the list.
+- If there is a price after a discount, and the user wants to ask for the total price of the item, calculate using the discount price, not the original price.
 
 Formatting rules for WhatsApp:
 - Use *asterisks* for bold (*bold*).
@@ -239,6 +248,23 @@ Formatting rules for WhatsApp:
 
             // Generate AI response dengan context & chat history
             const response = await this.generateResponse(message, relatedProducts, chatHistory);
+
+            // --- PATCH: Increment inquiry counter untuk setiap produk yang direkomendasikan ---
+            if (Array.isArray(relatedProducts) && relatedProducts.length > 0) {
+                const batch = db.batch();
+                relatedProducts.forEach(product => {
+                    if (!product || !product.id) return;
+                    const ref = db.collection('productInquiries').doc(product.id);
+                    batch.set(ref, {
+                        productName: product.name || '',
+                        category: Array.isArray(product.category) ? product.category[0] : (product.category || ''),
+                        lastInquiryAt: new Date(),
+                        count: admin.firestore.FieldValue.increment(1)
+                    }, { merge: true });
+                });
+                await batch.commit();
+            }
+            // --- END PATCH ---
 
             // Simpan pesan user & balasan AI ke history
             await historyService.addMessage(userId, 'user', message);

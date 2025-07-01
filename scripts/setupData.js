@@ -26,7 +26,11 @@ const sampleProducts = [
                 options: [
                     {
                         value: "Hitam",
-                        images: []
+                        price: 0,
+                        discount: {},
+                        stock: 0,
+                        images: [],
+                        sku: ""
                     },
                     {
                         value: "Biru",
